@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -173,7 +174,8 @@ private class TrailBuffer(
 
     /**
      * Draws a small circle at the given position with the specified RGB color and opacity.
-     * Replaces the per-pixel [accumulatePixel] logic with Canvas.drawCircle.
+     * Uses [BlendMode.Add] to accumulate colors additively, matching the original Java behavior
+     * where overlapping particles brighten toward white.
      */
     fun drawPixel(x: Double, y: Double, r: Int, g: Int, b: Int, opacity: Double) {
         drawScope.draw(
@@ -190,7 +192,8 @@ private class TrailBuffer(
                     alpha = opacity.toFloat()
                 ),
                 radius = 1f,
-                center = Offset(x.toFloat(), y.toFloat())
+                center = Offset(x.toFloat(), y.toFloat()),
+                blendMode = BlendMode.Plus
             )
         }
     }

@@ -108,3 +108,5 @@
 52. Take GrappaNew, and instead of using an offscreen Bitmap with ByteArray  that is updated on per-pixel level with subsequent Bitmap.installPixels call, apply the logic from DynamicPixels. The accumulatePixel logic that writes entries into the underlying pixelData byte array can be replaced by a call to Canvas.drawCircle to draw a single pixel with the relevant RGB color.
 
 53. Replace Grappa with GrappaNew and remove GrappaNew and its desktop demo
+
+54. The original logic in Grappa.java was manipulating pixel color channels additively. At every iteration, it was adding R, G and B channels on top of the previous pixels, eventually leading up to full white color if there were multiple particles drawn there. Is there a mode on canvas that would restore that functionality?
