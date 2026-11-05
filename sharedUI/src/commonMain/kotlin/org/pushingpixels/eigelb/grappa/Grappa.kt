@@ -33,6 +33,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.isActive
 import org.jetbrains.skia.Bitmap
@@ -85,7 +86,9 @@ internal class Settings {
         attractionMin = 60.0 * Random.nextDouble() * Random.nextDouble()
         attractionMax = attractionMin * (1.0 + 2.0 * Random.nextDouble() * Random.nextDouble())
         attractionLinearity = Random.nextDouble()
+    }
 
+    fun preset() {
         n = 101
         frictionMin = 0.995
         frictionMax = 0.977
@@ -150,6 +153,14 @@ private class PixelBuffer(private val width: Int, private val height: Int) {
                 setPixelRaw(x, y, r, g, b)
             }
         }
+    }
+
+    /**
+     * Clears the buffer to black and updates the Skia bitmap.
+     */
+    fun clear() {
+        fill(0, 0, 0)
+        updatePixels()
     }
 
     /**
@@ -247,6 +258,8 @@ fun Grappa(
     var bitmapWidth by remember { mutableStateOf(0) }
     var bitmapHeight by remember { mutableStateOf(0) }
     var imageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var frameCount by remember { mutableStateOf(0) }
+    var fps by remember { mutableStateOf(0.0) }
 
     // Lazy initialization of PixelBuffer when size is known
     var pixelBuffer by remember { mutableStateOf<PixelBuffer?>(null) }
@@ -254,12 +267,12 @@ fun Grappa(
     val density = LocalDensity.current.density
     val textMeasurer = rememberTextMeasurer()
 
-    // Button dimensions
-    val buttonHeight = 30
-    val buttonPadding = 12
-    val buttonMarginRight = 12
-    val buttonMarginBottom = 12
-    val buttonTextPadding = 16 // Horizontal padding inside each button
+    // Button dimensions (scaled by density for proper sizing across screen densities)
+    val buttonHeight = 20 * density
+    val buttonPadding = 6 * density
+    val buttonMarginRight = 6 * density
+    val buttonMarginBottom = 6 * density
+    val buttonTextPadding = 12 * density // Horizontal padding inside each button
 
     // Button positions (calculated when canvas size is known)
     var clearButtonRect by remember { mutableStateOf(Rect.Zero) }
@@ -298,6 +311,11 @@ fun Grappa(
                     (frameTimeNanos - lastFrameNanos) / 1_000_000_000.0
                 } else 0.016
                 lastFrameNanos = frameTimeNanos
+                // Track framerate
+                if (dtSec > 0) {
+                    fps = 1.0 / dtSec
+                }
+
                 // Scale dt to match the original Java applet's pace: dt = 0.00003 per step
                 // with Thread.sleep(20) between frames (~50 frames/sec). Normalize to real time.
                 // Use a larger divisor to slow down particle movement towards the pointer.
@@ -326,8 +344,24 @@ fun Grappa(
                     pixelBuffer?.updatePixels()
                     imageBitmap = pixelBuffer?.toImageBitmap()
                 }
+
+                // Trigger recomposition
+                frameCount++
             }
         }
+    }
+
+    // Cache FPS text measurement to avoid expensive layout work every frame
+    var cachedFpsLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var lastFpsInt by remember { mutableStateOf(-1) }
+
+    val currentFpsInt = fps.toInt()
+    if (currentFpsInt != lastFpsInt) {
+        cachedFpsLayout = textMeasurer.measure(
+            text = "FPS: $currentFpsInt",
+            style = TextStyle(color = Color(0xFF80E0FF).copy(alpha = 0.7f), fontSize = 12.sp)
+        )
+        lastFpsInt = currentFpsInt
     }
 
     Canvas(modifier = modifier
@@ -340,18 +374,24 @@ fun Grappa(
                         when (event.type) {
                             PointerEventType.Release -> {
                                 // Check button clicks on release
-                                if (randomizeButtonRect.contains(change.position)) {
+                                if (presetButtonRect.contains(change.position)) {
+                                    settings.preset()
+                                    settings.updateParticles(particles, density)
+                                    pixelBuffer?.clear()
+                                    imageBitmap = pixelBuffer?.toImageBitmap()
+                                } else if (randomizeButtonRect.contains(change.position)) {
                                     settings.randomize()
                                     settings.updateParticles(particles, density)
+                                    pixelBuffer?.clear()
+                                    imageBitmap = pixelBuffer?.toImageBitmap()
                                 } else if (clearButtonRect.contains(change.position)) {
-                                    pixelBuffer?.fill(0, 0, 0)
-                                    pixelBuffer?.updatePixels()
+                                    pixelBuffer?.clear()
                                     imageBitmap = pixelBuffer?.toImageBitmap()
                                 }
                                 isPointerPressed = false
                             }
                             PointerEventType.Press -> {
-                                if (randomizeButtonRect.contains(change.position) || clearButtonRect.contains(change.position)) {
+                                if (presetButtonRect.contains(change.position) || randomizeButtonRect.contains(change.position) || clearButtonRect.contains(change.position)) {
                                     continue;
                                 }
                                 pointerPosition = change.position
@@ -381,11 +421,12 @@ fun Grappa(
         }
 
         // Calculate button positions in the bottom right corner
+        // Order from bottom to top: Clear, Randomize, Preset
         val canvasWidth = size.width
         val canvasHeight = size.height
-        val presetTop = canvasHeight - buttonMarginBottom - buttonHeight
-        val randomizeTop = presetTop - buttonHeight - buttonPadding
-        val clearTop = randomizeTop - buttonHeight - buttonPadding
+        val clearTop = canvasHeight - buttonMarginBottom - buttonHeight
+        val randomizeTop = clearTop - buttonHeight - buttonPadding
+        val presetTop = randomizeTop - buttonHeight - buttonPadding
         val buttonLeft = canvasWidth - buttonMarginRight - buttonWidth
 
         presetButtonRect = Rect(
@@ -458,6 +499,14 @@ fun Grappa(
             val textX = buttonLeft + (buttonWidth - layout.size.width) / 2f
             val textY = presetTop + (buttonHeight - layout.size.height) / 2f
             drawText(layout, topLeft = Offset(textX, textY))
+        }
+
+        // Draw FPS counter at bottom-left
+        cachedFpsLayout?.let { fpsLayout ->
+            drawText(
+                textLayoutResult = fpsLayout,
+                topLeft = Offset(12.dp.toPx(), canvasHeight - fpsLayout.size.height - 12.dp.toPx())
+            )
         }
     }
 }
