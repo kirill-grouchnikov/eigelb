@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ComposeViewport
 import org.pushingpixels.eigelb.glitzer.*
+import org.pushingpixels.eigelb.grappa.Grappa
 
 // This is a modified version of the original source code by Paul Schmidinger
 // from the Java applet effect demos at https://eigelb.at/
@@ -29,7 +30,7 @@ import org.pushingpixels.eigelb.glitzer.*
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() = ComposeViewport {
     var selectedApplet by remember { mutableStateOf("Glitzer") }
-    val applets = listOf("Glitzer", "Lissajous", "Maus", "Paint")
+    val applets = listOf("Glitzer", "Grappa", "Lissajous", "Maus", "Paint")
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Applet selector bar
@@ -61,6 +62,7 @@ fun main() = ComposeViewport {
                 "Lissajous" -> Lissajous(modifier = Modifier.fillMaxSize())
                 "Maus" -> Maus(modifier = Modifier.fillMaxSize())
                 "Paint" -> Paint(modifier = Modifier.fillMaxSize())
+                "Grappa" -> Grappa(modifier = Modifier.fillMaxSize())
             }
         }
     }

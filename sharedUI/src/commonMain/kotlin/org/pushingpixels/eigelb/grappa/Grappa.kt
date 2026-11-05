@@ -77,6 +77,9 @@ internal class Settings {
     private var attractionMin: Double = 0.0
     private var attractionMax: Double = 0.0
     private var attractionLinearity: Double = 0.0
+    var colorRed: Int = 255
+    var colorGreen: Int = 50
+    var colorBlue: Int = 10
 
     fun randomize() {
         n = 1 + Random.nextInt(nMax)
@@ -86,6 +89,11 @@ internal class Settings {
         attractionMin = 60.0 * Random.nextDouble() * Random.nextDouble()
         attractionMax = attractionMin * (1.0 + 2.0 * Random.nextDouble() * Random.nextDouble())
         attractionLinearity = Random.nextDouble()
+        // Randomize color channels, ensuring at least one is 255
+        val channel = Random.nextInt(3)
+        colorRed = if (channel == 0) 255 else Random.nextInt(256)
+        colorGreen = if (channel == 1) 255 else Random.nextInt(256)
+        colorBlue = if (channel == 2) 255 else Random.nextInt(256)
     }
 
     fun preset() {
@@ -96,6 +104,9 @@ internal class Settings {
         attractionMin = 2.74
         attractionMax = 3.07
         attractionLinearity = 0.93
+        colorRed = 255
+        colorGreen = 50
+        colorBlue = 10
     }
 
     fun updateParticles(particles: Array<Particle>, density: Float) {
@@ -113,9 +124,9 @@ internal class Settings {
                 attractionMin + attractionLinearity * t * (attractionMax - attractionMin) +
                         (1.0 - attractionLinearity) * Random.nextDouble() * (attractionMax - attractionMin)
             particles[j].attraction *= density
-            particles[j].red = 255
-            particles[j].green = 50
-            particles[j].blue = 10
+            particles[j].red = colorRed
+            particles[j].green = colorGreen
+            particles[j].blue = colorBlue
         }
     }
 }
@@ -382,8 +393,6 @@ fun Grappa(
                                 } else if (randomizeButtonRect.contains(change.position)) {
                                     settings.randomize()
                                     settings.updateParticles(particles, density)
-                                    pixelBuffer?.clear()
-                                    imageBitmap = pixelBuffer?.toImageBitmap()
                                 } else if (clearButtonRect.contains(change.position)) {
                                     pixelBuffer?.clear()
                                     imageBitmap = pixelBuffer?.toImageBitmap()
