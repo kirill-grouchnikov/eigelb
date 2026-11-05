@@ -16,31 +16,31 @@
 package org.pushingpixels.eigelb.grappa
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asComposeImageBitmap
-import androidx.compose.ui.graphics.drawscope.DrawStyle
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.isActive
-import org.jetbrains.skia.Bitmap
-import org.jetbrains.skia.ColorAlphaType
-import org.jetbrains.skia.ColorInfo
-import org.jetbrains.skia.ColorType
-import org.jetbrains.skia.ImageInfo
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.random.Random
@@ -132,123 +132,67 @@ internal class Settings {
 }
 
 /**
- * Pixel buffer that wraps a Skia Bitmap for direct pixel manipulation.
- * Port of the original [SmiSchirm_c] Java class, which used 2D int arrays for R/G/B channels
- * scaled by 256. This implementation uses a Skia Bitmap with BGRA_8888 pixel format and
- * [Bitmap.allocPixels]/[Bitmap.installPixels] to get direct access to the pixel buffer.
+ * Trail buffer using the DynamicPixelPainter pattern: an offscreen [ImageBitmap] with a
+ * [CanvasDrawScope] that draws circles via [GraphicsCanvas.drawCircle] instead of per-pixel
+ * ByteArray manipulation. This is significantly faster on WASM targets than PixelMapper.
  */
-private class PixelBuffer(private val width: Int, private val height: Int) {
-    private val pixelData = ByteArray(width * height * 4)
-    private val skiaBitmap = Bitmap()
+private class TrailBuffer(
+    private val width: Int,
+    private val height: Int,
+    private val density: Density
+) {
+    val bitmap = ImageBitmap(width, height)
+    val canvas = GraphicsCanvas(bitmap)
+    val drawScope = CanvasDrawScope()
 
     init {
-        val imageInfo = ImageInfo(
-            colorInfo = ColorInfo(
-                colorType = ColorType.BGRA_8888,
-                alphaType = ColorAlphaType.OPAQUE,
-                colorSpace = null
-            ),
-            width = width,
-            height = height
-        )
-        skiaBitmap.allocPixels(imageInfo)
-        skiaBitmap.installPixels(pixelData)
-    }
-
-    /**
-     * Fills the entire buffer with a solid color.
-     */
-    fun fill(r: Int, g: Int, b: Int) {
-        for (y in 0 until height) {
-            for (x in 0 until width) {
-                setPixelRaw(x, y, r, g, b)
-            }
+        // Initialize the canvas background to black
+        drawScope.draw(
+            density = density,
+            layoutDirection = LayoutDirection.Ltr,
+            canvas = canvas,
+            size = Size(width.toFloat(), height.toFloat())
+        ) {
+            drawRect(color = Color.Black)
         }
     }
 
     /**
-     * Clears the buffer to black and updates the Skia bitmap.
+     * Clears the buffer to black.
      */
     fun clear() {
-        fill(0, 0, 0)
-        updatePixels()
-    }
-
-    /**
-     * Sets a pixel directly in the buffer without clamping.
-     * The original Java code stored RGB values scaled by 256 in separate arrays.
-     * Here we accumulate directly in the BGRA byte buffer.
-     */
-    private fun setPixelRaw(x: Int, y: Int, r: Int, g: Int, b: Int) {
-        val idx = (y * width + x) * 4
-        pixelData[idx] = b.toByte()          // B
-        pixelData[idx + 1] = g.toByte()      // G
-        pixelData[idx + 2] = r.toByte()      // R
-        pixelData[idx + 3] = 255.toByte()    // A
-    }
-
-    /**
-     * Draws a pixel with bilinear interpolation across the 4 neighboring pixels,
-     * accumulating color with the given opacity.
-     * Port of the original [SmiSchirm_c.drawPixel] method.
-     */
-    fun drawPixel(x: Double, y: Double, r: Int, g: Int, b: Int, opacity: Double) {
-        if (x > 0 && x < width - 1 && y > 0 && y < height - 1) {
-            val x1 = x.toInt()
-            val x2 = x1 + 1
-            val y1 = y.toInt()
-            val y2 = y1 + 1
-            val x1f = x2 - x
-            val x2f = 1.0 - x1f
-            val y1f = y2 - y
-            val y2f = 1.0 - y1f
-
-            // Accumulate color at each of the 4 neighboring pixels
-            accumulatePixel(x1, y1, r, g, b, x1f * y1f * opacity)
-            accumulatePixel(x2, y1, r, g, b, x2f * y1f * opacity)
-            accumulatePixel(x1, y2, r, g, b, x1f * y2f * opacity)
-            accumulatePixel(x2, y2, r, g, b, x2f * y2f * opacity)
+        drawScope.draw(
+            density = density,
+            layoutDirection = LayoutDirection.Ltr,
+            canvas = canvas,
+            size = Size(width.toFloat(), height.toFloat())
+        ) {
+            drawRect(color = Color.Black)
         }
     }
 
-    private fun accumulatePixel(px: Int, py: Int, r: Int, g: Int, b: Int, weight: Double) {
-        val idx = (py * width + px) * 4
-        // Read current values
-        val curB = pixelData[idx].toInt() and 0xFF
-        val curG = pixelData[idx + 1].toInt() and 0xFF
-        val curR = pixelData[idx + 2].toInt() and 0xFF
-
-        // Accumulate: original Java code used 256*scale factor; here we use weight directly
-        val newR = min((curR + weight * r).toInt(), 255)
-        val newG = min((curG + weight * g).toInt(), 255)
-        val newB = min((curB + weight * b).toInt(), 255)
-
-        pixelData[idx] = newB.toByte()
-        pixelData[idx + 1] = newG.toByte()
-        pixelData[idx + 2] = newR.toByte()
-    }
-
     /**
-     * Returns the current pixel buffer as a Compose [ImageBitmap].
+     * Draws a small circle at the given position with the specified RGB color and opacity.
+     * Replaces the per-pixel [accumulatePixel] logic with Canvas.drawCircle.
      */
-    fun toImageBitmap(): ImageBitmap {
-        return skiaBitmap.asComposeImageBitmap()
-    }
-
-    /**
-     * Reinstalls the pixel data to ensure the Skia bitmap reflects current buffer state.
-     */
-    fun updatePixels() {
-        val imageInfo = ImageInfo(
-            colorInfo = ColorInfo(
-                colorType = ColorType.BGRA_8888,
-                alphaType = ColorAlphaType.OPAQUE,
-                colorSpace = null
-            ),
-            width = width,
-            height = height
-        )
-        skiaBitmap.installPixels(imageInfo, pixelData, width * 4)
+    fun drawPixel(x: Double, y: Double, r: Int, g: Int, b: Int, opacity: Double) {
+        drawScope.draw(
+            density = density,
+            layoutDirection = LayoutDirection.Ltr,
+            canvas = canvas,
+            size = Size(width.toFloat(), height.toFloat())
+        ) {
+            drawCircle(
+                color = Color(
+                    red = r / 255f,
+                    green = g / 255f,
+                    blue = b / 255f,
+                    alpha = opacity.toFloat()
+                ),
+                radius = 1f,
+                center = Offset(x.toFloat(), y.toFloat())
+            )
+        }
     }
 }
 
@@ -258,6 +202,7 @@ private class PixelBuffer(private val width: Int, private val height: Int) {
  * Particles are attracted toward the mouse/pointer position. While the pointer is pressed,
  * particles leave colored trails on a pixel buffer using bilinear interpolation.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun Grappa(
     modifier: Modifier = Modifier
@@ -266,17 +211,20 @@ fun Grappa(
     val settings = remember { Settings() }
     var pointerPosition by remember { mutableStateOf(Offset.Zero) }
     var isPointerPressed by remember { mutableStateOf(false) }
-    var bitmapWidth by remember { mutableStateOf(0) }
-    var bitmapHeight by remember { mutableStateOf(0) }
-    var imageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var frameCount by remember { mutableStateOf(0) }
     var fps by remember { mutableStateOf(0.0) }
 
-    // Lazy initialization of PixelBuffer when size is known
-    var pixelBuffer by remember { mutableStateOf<PixelBuffer?>(null) }
-
     val density = LocalDensity.current.density
+    val densityObj = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
+
+    // Offscreen trail buffer — lazily initialized when canvas size is known
+    var trailBuffer by remember { mutableStateOf<TrailBuffer?>(null) }
+    var bitmapWidth by remember { mutableStateOf(0) }
+    var bitmapHeight by remember { mutableStateOf(0) }
+
+    // Draw-phase invalidation token (bypasses layout phase entirely)
+    var drawInvalidationToken by remember { mutableIntStateOf(0) }
 
     // Button dimensions (scaled by density for proper sizing across screen densities)
     val buttonHeight = 20 * density
@@ -308,7 +256,7 @@ fun Grappa(
 
     // Initialize settings on first composition
     LaunchedEffect(Unit) {
-        settings.randomize()
+        settings.preset()
         settings.updateParticles(particles, density)
     }
 
@@ -333,7 +281,7 @@ fun Grappa(
                 val dt = 0.00003 * dtSec / 0.05
 
                 // Run physics steps
-                if (bitmapWidth > 0 && bitmapHeight > 0) {
+                if (trailBuffer != null) {
                     repeat(10) {
                         for (j in 0 until settings.n) {
                             val p = particles[j]
@@ -344,7 +292,7 @@ fun Grappa(
                             p.x += dt * p.vx
                             p.y += dt * p.vy
                             if (isPointerPressed) {
-                                pixelBuffer?.drawPixel(
+                                trailBuffer?.drawPixel(
                                     p.x, p.y,
                                     p.red, p.green, p.blue,
                                     0.15
@@ -352,8 +300,8 @@ fun Grappa(
                             }
                         }
                     }
-                    pixelBuffer?.updatePixels()
-                    imageBitmap = pixelBuffer?.toImageBitmap()
+                    // Fire the lean draw invalidation signal to force Compose to re-read the draw scope block
+                    drawInvalidationToken++
                 }
 
                 // Trigger recomposition
@@ -375,147 +323,149 @@ fun Grappa(
         lastFpsInt = currentFpsInt
     }
 
-    Canvas(modifier = modifier
-        .fillMaxSize()
-        .pointerInput(Unit) {
-            awaitPointerEventScope {
-                while (true) {
-                    val event = awaitPointerEvent()
-                    for (change in event.changes) {
-                        when (event.type) {
-                            PointerEventType.Release -> {
-                                // Check button clicks on release
-                                if (presetButtonRect.contains(change.position)) {
-                                    settings.preset()
-                                    settings.updateParticles(particles, density)
-                                    pixelBuffer?.clear()
-                                    imageBitmap = pixelBuffer?.toImageBitmap()
-                                } else if (randomizeButtonRect.contains(change.position)) {
-                                    settings.randomize()
-                                    settings.updateParticles(particles, density)
-                                } else if (clearButtonRect.contains(change.position)) {
-                                    pixelBuffer?.clear()
-                                    imageBitmap = pixelBuffer?.toImageBitmap()
+    Box(modifier = modifier) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            for (change in event.changes) {
+                                when (event.type) {
+                                    PointerEventType.Release -> {
+                                        // Check button clicks on release
+                                        if (presetButtonRect.contains(change.position)) {
+                                            settings.preset()
+                                            settings.updateParticles(particles, density)
+                                            trailBuffer?.clear()
+                                            drawInvalidationToken++
+                                        } else if (randomizeButtonRect.contains(change.position)) {
+                                            settings.randomize()
+                                            settings.updateParticles(particles, density)
+                                        } else if (clearButtonRect.contains(change.position)) {
+                                            trailBuffer?.clear()
+                                            drawInvalidationToken++
+                                        }
+                                        isPointerPressed = false
+                                    }
+                                    PointerEventType.Press -> {
+                                        if (presetButtonRect.contains(change.position) || randomizeButtonRect.contains(change.position) || clearButtonRect.contains(change.position)) {
+                                            continue
+                                        }
+                                        pointerPosition = change.position
+                                        isPointerPressed = true
+                                    }
+                                    PointerEventType.Move -> {
+                                        pointerPosition = change.position
+                                    }
+                                    else -> {}
                                 }
-                                isPointerPressed = false
                             }
-                            PointerEventType.Press -> {
-                                if (presetButtonRect.contains(change.position) || randomizeButtonRect.contains(change.position) || clearButtonRect.contains(change.position)) {
-                                    continue;
-                                }
-                                pointerPosition = change.position
-                                isPointerPressed = true
-                            }
-                            PointerEventType.Move -> {
-                                pointerPosition = change.position
-                            }
-                            else -> {}
                         }
                     }
                 }
-            }
-        }
-    ) {
-        // Initialize PixelBuffer when canvas size becomes available
-        if (pixelBuffer == null || bitmapWidth != size.width.toInt() || bitmapHeight != size.height.toInt()) {
-            bitmapWidth = size.width.toInt()
-            bitmapHeight = size.height.toInt()
-            if (bitmapWidth > 0 && bitmapHeight > 0) {
-                pixelBuffer = PixelBuffer(bitmapWidth, bitmapHeight).also {
-                    it.fill(0, 0, 0)
-                    it.updatePixels()
-                    imageBitmap = it.toImageBitmap()
+        ) {
+            // Initialize TrailBuffer when canvas size becomes available
+            if (trailBuffer == null || bitmapWidth != size.width.toInt() || bitmapHeight != size.height.toInt()) {
+                bitmapWidth = size.width.toInt()
+                bitmapHeight = size.height.toInt()
+                if (bitmapWidth > 0 && bitmapHeight > 0) {
+                    trailBuffer = TrailBuffer(bitmapWidth, bitmapHeight, densityObj)
                 }
             }
-        }
 
-        // Calculate button positions in the bottom right corner
-        // Order from bottom to top: Clear, Randomize, Preset
-        val canvasWidth = size.width
-        val canvasHeight = size.height
-        val clearTop = canvasHeight - buttonMarginBottom - buttonHeight
-        val randomizeTop = clearTop - buttonHeight - buttonPadding
-        val presetTop = randomizeTop - buttonHeight - buttonPadding
-        val buttonLeft = canvasWidth - buttonMarginRight - buttonWidth
+            // Calculate button positions in the bottom right corner
+            // Order from bottom to top: Clear, Randomize, Preset
+            val canvasWidth = size.width
+            val canvasHeight = size.height
+            val clearTop = canvasHeight - buttonMarginBottom - buttonHeight
+            val randomizeTop = clearTop - buttonHeight - buttonPadding
+            val presetTop = randomizeTop - buttonHeight - buttonPadding
+            val buttonLeft = canvasWidth - buttonMarginRight - buttonWidth
 
-        presetButtonRect = Rect(
-            left = buttonLeft,
-            top = presetTop,
-            right = buttonLeft + buttonWidth,
-            bottom = presetTop + buttonHeight
-        )
-        randomizeButtonRect = Rect(
-            left = buttonLeft,
-            top = randomizeTop,
-            right = buttonLeft + buttonWidth,
-            bottom = randomizeTop + buttonHeight
-        )
-        clearButtonRect = Rect(
-            left = buttonLeft,
-            top = clearTop,
-            right = buttonLeft + buttonWidth,
-            bottom = clearTop + buttonHeight
-        )
-
-        // Draw black background
-        drawRect(Color.Black)
-
-        // Draw the pixel buffer
-        imageBitmap?.let { drawImage(it) }
-
-        // Draw button outlines
-        val buttonColor = Color(0xFF80E0FF).copy(alpha = 0.7f)
-        drawRect(
-            color = buttonColor,
-            topLeft = Offset(clearButtonRect.left, clearButtonRect.top),
-            size = androidx.compose.ui.geometry.Size(
-                clearButtonRect.right - clearButtonRect.left,
-                clearButtonRect.bottom - clearButtonRect.top
-            ),
-            style = Stroke()
-        )
-        drawRect(
-            color = buttonColor,
-            topLeft = Offset(randomizeButtonRect.left, randomizeButtonRect.top),
-            size = androidx.compose.ui.geometry.Size(
-                randomizeButtonRect.right - randomizeButtonRect.left,
-                randomizeButtonRect.bottom - randomizeButtonRect.top
-            ),
-            style = Stroke()
-        )
-        drawRect(
-            color = buttonColor,
-            topLeft = Offset(presetButtonRect.left, presetButtonRect.top),
-            size = androidx.compose.ui.geometry.Size(
-                presetButtonRect.right - presetButtonRect.left,
-                presetButtonRect.bottom - presetButtonRect.top
-            ),
-            style = Stroke()
-        )
-
-        // Draw button text, centered in each button
-        cachedClearLayout?.let { layout ->
-            val textX = buttonLeft + (buttonWidth - layout.size.width) / 2f
-            val textY = clearTop + (buttonHeight - layout.size.height) / 2f
-            drawText(layout, topLeft = Offset(textX, textY))
-        }
-        cachedRandomizeLayout?.let { layout ->
-            val textX = buttonLeft + (buttonWidth - layout.size.width) / 2f
-            val textY = randomizeTop + (buttonHeight - layout.size.height) / 2f
-            drawText(layout, topLeft = Offset(textX, textY))
-        }
-        cachedPresetLayout?.let { layout ->
-            val textX = buttonLeft + (buttonWidth - layout.size.width) / 2f
-            val textY = presetTop + (buttonHeight - layout.size.height) / 2f
-            drawText(layout, topLeft = Offset(textX, textY))
-        }
-
-        // Draw FPS counter at bottom-left
-        cachedFpsLayout?.let { fpsLayout ->
-            drawText(
-                textLayoutResult = fpsLayout,
-                topLeft = Offset(12.dp.toPx(), canvasHeight - fpsLayout.size.height - 12.dp.toPx())
+            presetButtonRect = Rect(
+                left = buttonLeft,
+                top = presetTop,
+                right = buttonLeft + buttonWidth,
+                bottom = presetTop + buttonHeight
             )
+            randomizeButtonRect = Rect(
+                left = buttonLeft,
+                top = randomizeTop,
+                right = buttonLeft + buttonWidth,
+                bottom = randomizeTop + buttonHeight
+            )
+            clearButtonRect = Rect(
+                left = buttonLeft,
+                top = clearTop,
+                right = buttonLeft + buttonWidth,
+                bottom = clearTop + buttonHeight
+            )
+
+            // Draw-phase isolation: reference the token to register a dependency strictly bound to the Draw phase
+            val readTokenForInvalidation = drawInvalidationToken
+
+            // Draw black background
+            drawRect(Color.Black)
+
+            // Blit the offscreen trail bitmap onto the screen
+            trailBuffer?.bitmap?.let { drawImage(it) }
+
+            // Draw button outlines
+            val buttonColor = Color(0xFF80E0FF).copy(alpha = 0.7f)
+            drawRect(
+                color = buttonColor,
+                topLeft = Offset(clearButtonRect.left, clearButtonRect.top),
+                size = androidx.compose.ui.geometry.Size(
+                    clearButtonRect.right - clearButtonRect.left,
+                    clearButtonRect.bottom - clearButtonRect.top
+                ),
+                style = Stroke()
+            )
+            drawRect(
+                color = buttonColor,
+                topLeft = Offset(randomizeButtonRect.left, randomizeButtonRect.top),
+                size = androidx.compose.ui.geometry.Size(
+                    randomizeButtonRect.right - randomizeButtonRect.left,
+                    randomizeButtonRect.bottom - randomizeButtonRect.top
+                ),
+                style = Stroke()
+            )
+            drawRect(
+                color = buttonColor,
+                topLeft = Offset(presetButtonRect.left, presetButtonRect.top),
+                size = androidx.compose.ui.geometry.Size(
+                    presetButtonRect.right - presetButtonRect.left,
+                    presetButtonRect.bottom - presetButtonRect.top
+                ),
+                style = Stroke()
+            )
+
+            // Draw button text, centered in each button
+            cachedClearLayout?.let { layout ->
+                val textX = buttonLeft + (buttonWidth - layout.size.width) / 2f
+                val textY = clearTop + (buttonHeight - layout.size.height) / 2f
+                drawText(layout, topLeft = Offset(textX, textY))
+            }
+            cachedRandomizeLayout?.let { layout ->
+                val textX = buttonLeft + (buttonWidth - layout.size.width) / 2f
+                val textY = randomizeTop + (buttonHeight - layout.size.height) / 2f
+                drawText(layout, topLeft = Offset(textX, textY))
+            }
+            cachedPresetLayout?.let { layout ->
+                val textX = buttonLeft + (buttonWidth - layout.size.width) / 2f
+                val textY = presetTop + (buttonHeight - layout.size.height) / 2f
+                drawText(layout, topLeft = Offset(textX, textY))
+            }
+
+            // Draw FPS counter at bottom-left
+            cachedFpsLayout?.let { fpsLayout ->
+                drawText(
+                    textLayoutResult = fpsLayout,
+                    topLeft = Offset(12.dp.toPx(), canvasHeight - fpsLayout.size.height - 12.dp.toPx())
+                )
+            }
         }
     }
 }
