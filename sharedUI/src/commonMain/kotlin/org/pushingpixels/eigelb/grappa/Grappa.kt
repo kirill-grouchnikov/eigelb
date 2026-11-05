@@ -20,18 +20,27 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asComposeImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawStyle
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.isActive
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorInfo
 import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.ImageInfo
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.random.Random
 
@@ -243,6 +252,35 @@ fun Grappa(
     var pixelBuffer by remember { mutableStateOf<PixelBuffer?>(null) }
 
     val density = LocalDensity.current.density
+    val textMeasurer = rememberTextMeasurer()
+
+    // Button dimensions
+    val buttonHeight = 30
+    val buttonPadding = 12
+    val buttonMarginRight = 12
+    val buttonMarginBottom = 12
+    val buttonTextPadding = 16 // Horizontal padding inside each button
+
+    // Button positions (calculated when canvas size is known)
+    var clearButtonRect by remember { mutableStateOf(Rect.Zero) }
+    var randomizeButtonRect by remember { mutableStateOf(Rect.Zero) }
+    var presetButtonRect by remember { mutableStateOf(Rect.Zero) }
+
+    // Cache text measurements for buttons
+    var cachedClearLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var cachedRandomizeLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var cachedPresetLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+
+    val buttonStyle = TextStyle(color = Color(0xFF80E0FF).copy(alpha = 0.7f), fontSize = 14.sp)
+    cachedClearLayout = textMeasurer.measure(text = "Clear", style = buttonStyle)
+    cachedRandomizeLayout = textMeasurer.measure(text = "Randomize", style = buttonStyle)
+    cachedPresetLayout = textMeasurer.measure(text = "Preset", style = buttonStyle)
+
+    // Size all buttons to the widest label
+    val buttonWidth = max(
+        max(cachedClearLayout?.size?.width ?: 0, cachedRandomizeLayout?.size?.width ?: 0),
+        cachedPresetLayout?.size?.width ?: 0
+    ) + buttonTextPadding
 
     // Initialize settings on first composition
     LaunchedEffect(Unit) {
@@ -300,12 +338,24 @@ fun Grappa(
                     val event = awaitPointerEvent()
                     for (change in event.changes) {
                         when (event.type) {
+                            PointerEventType.Release -> {
+                                // Check button clicks on release
+                                if (randomizeButtonRect.contains(change.position)) {
+                                    settings.randomize()
+                                    settings.updateParticles(particles, density)
+                                } else if (clearButtonRect.contains(change.position)) {
+                                    pixelBuffer?.fill(0, 0, 0)
+                                    pixelBuffer?.updatePixels()
+                                    imageBitmap = pixelBuffer?.toImageBitmap()
+                                }
+                                isPointerPressed = false
+                            }
                             PointerEventType.Press -> {
+                                if (randomizeButtonRect.contains(change.position) || clearButtonRect.contains(change.position)) {
+                                    continue;
+                                }
                                 pointerPosition = change.position
                                 isPointerPressed = true
-                            }
-                            PointerEventType.Release -> {
-                                isPointerPressed = false
                             }
                             PointerEventType.Move -> {
                                 pointerPosition = change.position
@@ -330,10 +380,84 @@ fun Grappa(
             }
         }
 
+        // Calculate button positions in the bottom right corner
+        val canvasWidth = size.width
+        val canvasHeight = size.height
+        val presetTop = canvasHeight - buttonMarginBottom - buttonHeight
+        val randomizeTop = presetTop - buttonHeight - buttonPadding
+        val clearTop = randomizeTop - buttonHeight - buttonPadding
+        val buttonLeft = canvasWidth - buttonMarginRight - buttonWidth
+
+        presetButtonRect = Rect(
+            left = buttonLeft,
+            top = presetTop,
+            right = buttonLeft + buttonWidth,
+            bottom = presetTop + buttonHeight
+        )
+        randomizeButtonRect = Rect(
+            left = buttonLeft,
+            top = randomizeTop,
+            right = buttonLeft + buttonWidth,
+            bottom = randomizeTop + buttonHeight
+        )
+        clearButtonRect = Rect(
+            left = buttonLeft,
+            top = clearTop,
+            right = buttonLeft + buttonWidth,
+            bottom = clearTop + buttonHeight
+        )
+
         // Draw black background
         drawRect(Color.Black)
 
         // Draw the pixel buffer
         imageBitmap?.let { drawImage(it) }
+
+        // Draw button outlines
+        val buttonColor = Color(0xFF80E0FF).copy(alpha = 0.7f)
+        drawRect(
+            color = buttonColor,
+            topLeft = Offset(clearButtonRect.left, clearButtonRect.top),
+            size = androidx.compose.ui.geometry.Size(
+                clearButtonRect.right - clearButtonRect.left,
+                clearButtonRect.bottom - clearButtonRect.top
+            ),
+            style = Stroke()
+        )
+        drawRect(
+            color = buttonColor,
+            topLeft = Offset(randomizeButtonRect.left, randomizeButtonRect.top),
+            size = androidx.compose.ui.geometry.Size(
+                randomizeButtonRect.right - randomizeButtonRect.left,
+                randomizeButtonRect.bottom - randomizeButtonRect.top
+            ),
+            style = Stroke()
+        )
+        drawRect(
+            color = buttonColor,
+            topLeft = Offset(presetButtonRect.left, presetButtonRect.top),
+            size = androidx.compose.ui.geometry.Size(
+                presetButtonRect.right - presetButtonRect.left,
+                presetButtonRect.bottom - presetButtonRect.top
+            ),
+            style = Stroke()
+        )
+
+        // Draw button text, centered in each button
+        cachedClearLayout?.let { layout ->
+            val textX = buttonLeft + (buttonWidth - layout.size.width) / 2f
+            val textY = clearTop + (buttonHeight - layout.size.height) / 2f
+            drawText(layout, topLeft = Offset(textX, textY))
+        }
+        cachedRandomizeLayout?.let { layout ->
+            val textX = buttonLeft + (buttonWidth - layout.size.width) / 2f
+            val textY = randomizeTop + (buttonHeight - layout.size.height) / 2f
+            drawText(layout, topLeft = Offset(textX, textY))
+        }
+        cachedPresetLayout?.let { layout ->
+            val textX = buttonLeft + (buttonWidth - layout.size.width) / 2f
+            val textY = presetTop + (buttonHeight - layout.size.height) / 2f
+            drawText(layout, topLeft = Offset(textX, textY))
+        }
     }
 }
