@@ -20,6 +20,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import org.pushingpixels.eigelb.grappa.Grappa
+import org.pushingpixels.eigelb.grappa.Settings
 import java.awt.Dimension
 
 // This is a modified version of the original source code by Paul Schmidinger
@@ -32,6 +33,6 @@ fun main() = application {
         onCloseRequest = ::exitApplication,
     ) {
         window.minimumSize = Dimension(350, 600)
-        Grappa(modifier = Modifier.fillMaxSize())
+        Grappa(modifier = Modifier.fillMaxSize(), startingSettings = Settings.preset())
     }
 }

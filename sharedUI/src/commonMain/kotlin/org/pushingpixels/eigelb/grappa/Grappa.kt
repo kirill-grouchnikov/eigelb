@@ -19,7 +19,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -53,37 +52,38 @@ import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
  * Particle with position, velocity, friction, and attraction properties.
  * Port of the original [Partikel_c] Java class.
  */
-internal class Particle {
+class Particle {
     var x: Double = 0.0
     var y: Double = 0.0
     var vx: Double = 0.0
     var vy: Double = 0.0
     var friction: Double = 0.0
     var attraction: Double = 0.0
-    var red: Int = 255
-    var green: Int = 50
-    var blue: Int = 10
+    var color: Color = Color(0xFFFF320A)
 }
 
 /**
  * Settings for particle system randomization.
  * Port of the original [Settings_c] Java class.
  */
-internal class Settings {
-    var n: Int = 50
-    val nMax = 150
-    private var frictionMin: Double = 0.0
-    private var frictionMax: Double = 0.0
-    private var frictionLinearity: Double = 0.0
-    private var attractionMin: Double = 0.0
-    private var attractionMax: Double = 0.0
-    private var attractionLinearity: Double = 0.0
-    var colorRed: Int = 255
-    var colorGreen: Int = 50
-    var colorBlue: Int = 10
+public data class Settings(
+    var activeParticleCount: Int = 50,
+    val maxParticleCount: Int = 150,
+    private var frictionMin: Double = 0.0,
+    private var frictionMax: Double = 0.0,
+    private var frictionLinearity: Double = 0.0,
+    private var attractionMin: Double = 0.0,
+    private var attractionMax: Double = 0.0,
+    private var attractionLinearity: Double = 0.0,
+    var particleColor: Color = Color(0xFFFF320A),
+    var particleAlphaMultiplier: Double = 0.15,
+    var canvasColor: Color = Color.Black,
+    var buttonColor: Color = Color(0xFF80E0FF),
+    var blendMode: BlendMode = BlendMode.Plus
+) {
 
     fun randomize() {
-        n = 1 + Random.nextInt(nMax)
+        activeParticleCount = 1 + Random.nextInt(maxParticleCount)
         frictionMin = 1.0 - 0.1 * Random.nextDouble() * Random.nextDouble()
         frictionMax = frictionMin * (1.0 - 0.1 * Random.nextDouble() * Random.nextDouble())
         frictionLinearity = Random.nextDouble()
@@ -92,32 +92,24 @@ internal class Settings {
         attractionLinearity = Random.nextDouble()
         // Randomize color channels, ensuring at least one is 255
         val channel = Random.nextInt(3)
-        colorRed = if (channel == 0) 255 else Random.nextInt(256)
-        colorGreen = if (channel == 1) 255 else Random.nextInt(256)
-        colorBlue = if (channel == 2) 255 else Random.nextInt(256)
+        val colorRed = if (channel == 0) 255 else Random.nextInt(256)
+        val colorGreen = if (channel == 1) 255 else Random.nextInt(256)
+        val colorBlue = if (channel == 2) 255 else Random.nextInt(256)
+        particleColor = Color(red = colorRed, green = colorGreen, blue = colorBlue, alpha = 255)
+        particleAlphaMultiplier = 0.15
+        canvasColor = Color.Black
+        buttonColor = Color(0xFF80E0FF)
+        blendMode = BlendMode.Plus
     }
 
-    fun preset() {
-        n = 101
-        frictionMin = 0.995
-        frictionMax = 0.977
-        frictionLinearity = 0.954
-        attractionMin = 2.74
-        attractionMax = 3.07
-        attractionLinearity = 0.93
-        colorRed = 255
-        colorGreen = 50
-        colorBlue = 10
-    }
-
-    fun updateParticles(particles: Array<Particle>, density: Float) {
+    fun updateParticles(particles: Array<Particle>, density: Float, target: Offset = Offset.Zero) {
         for (j in particles.indices) {
-            if (j >= n) break
-            particles[j].x = 0.0
-            particles[j].y = 0.0
+            if (j >= activeParticleCount) break
+            particles[j].x = target.x.toDouble()
+            particles[j].y = target.y.toDouble()
             particles[j].vx = 0.0
             particles[j].vy = 0.0
-            val t = if (n > 1) j / (n - 1).toDouble() else 0.0
+            val t = if (activeParticleCount > 1) j / (activeParticleCount - 1).toDouble() else 0.0
             particles[j].friction =
                 frictionMin + frictionLinearity * t * (frictionMax - frictionMin) +
                         (1.0 - frictionLinearity) * Random.nextDouble() * (frictionMax - frictionMin)
@@ -125,9 +117,64 @@ internal class Settings {
                 attractionMin + attractionLinearity * t * (attractionMax - attractionMin) +
                         (1.0 - attractionLinearity) * Random.nextDouble() * (attractionMax - attractionMin)
             particles[j].attraction *= density
-            particles[j].red = colorRed
-            particles[j].green = colorGreen
-            particles[j].blue = colorBlue
+            particles[j].color = particleColor
+        }
+    }
+
+    companion object {
+        fun preset(): Settings {
+            return Settings(
+                activeParticleCount = 101,
+                frictionMin = 0.995,
+                frictionMax = 0.977,
+                frictionLinearity = 0.954,
+                attractionMin = 2.74,
+                attractionMax = 3.07,
+                attractionLinearity = 0.93,
+                particleColor = Color(0xFFFF320A),
+                particleAlphaMultiplier = 0.15,
+                canvasColor = Color.Black,
+                buttonColor = Color(0xFF80E0FF),
+                blendMode = BlendMode.Plus,
+            )
+        }
+
+        fun blue(): Settings {
+            val colorRed = 40 + Random.nextInt(40)
+            val colorGreen = 100 + Random.nextInt(155)
+            val colorBlue = 100 + Random.nextInt(155)
+
+            return Settings(
+                activeParticleCount = 101,
+                frictionMin = 0.995,
+                frictionMax = 0.977,
+                frictionLinearity = 0.954,
+                attractionMin = 2.74,
+                attractionMax = 3.07,
+                attractionLinearity = 0.93,
+                particleColor = Color(red = colorRed, green = colorGreen, blue = colorBlue, alpha = 255),
+                particleAlphaMultiplier = 0.15,
+                canvasColor = Color.Black,
+                buttonColor = Color(0xFF80E0FF),
+                blendMode = BlendMode.Plus,
+            )
+        }
+
+        fun white(): Settings {
+            return Settings(
+                activeParticleCount = 101,
+                frictionMin = 0.995,
+                frictionMax = 0.977,
+                frictionLinearity = 0.954,
+                attractionMin = 2.74,
+                attractionMax = 3.07,
+                attractionLinearity = 0.93,
+                particleColor = Color(0x60FF4008),
+                particleAlphaMultiplier = 0.1,
+                canvasColor = Color.White,
+                buttonColor = Color(0xFF1050C0),
+                blendMode = BlendMode.Difference,
+            )
         }
     }
 }
@@ -140,6 +187,7 @@ internal class Settings {
 private class TrailBuffer(
     private val width: Int,
     private val height: Int,
+    private val canvasColor: Color,
     private val density: Density
 ) {
     val bitmap = ImageBitmap(width, height)
@@ -147,28 +195,28 @@ private class TrailBuffer(
     val drawScope = CanvasDrawScope()
 
     init {
-        // Initialize the canvas background to black
+        // Initialize the canvas background to the initial color
         drawScope.draw(
             density = density,
             layoutDirection = LayoutDirection.Ltr,
             canvas = canvas,
             size = Size(width.toFloat(), height.toFloat())
         ) {
-            drawRect(color = Color.Black)
+            drawRect(color = canvasColor)
         }
     }
 
     /**
-     * Clears the buffer to black.
+     * Clears the buffer to the specified color.
      */
-    fun clear() {
+    fun clear(canvasColor: Color) {
         drawScope.draw(
             density = density,
             layoutDirection = LayoutDirection.Ltr,
             canvas = canvas,
             size = Size(width.toFloat(), height.toFloat())
         ) {
-            drawRect(color = Color.Black)
+            drawRect(color = canvasColor)
         }
     }
 
@@ -177,7 +225,7 @@ private class TrailBuffer(
      * Uses [BlendMode.Plus] to accumulate colors additively, matching the original Java behavior
      * where overlapping particles brighten toward white.
      */
-    fun drawPixel(x: Double, y: Double, r: Int, g: Int, b: Int, opacity: Double) {
+    fun drawPixel(x: Double, y: Double, r: Float, g: Float, b: Float, opacity: Double, blendMode: BlendMode) {
         drawScope.draw(
             density = density,
             layoutDirection = LayoutDirection.Ltr,
@@ -186,14 +234,14 @@ private class TrailBuffer(
         ) {
             drawCircle(
                 color = Color(
-                    red = r / 255f,
-                    green = g / 255f,
-                    blue = b / 255f,
+                    red = r,
+                    green = g,
+                    blue = b,
                     alpha = opacity.toFloat()
                 ),
                 radius = 1f,
                 center = Offset(x.toFloat(), y.toFloat()),
-                blendMode = BlendMode.Plus
+                blendMode = blendMode
             )
         }
     }
@@ -205,13 +253,13 @@ private class TrailBuffer(
  * Particles are attracted toward the mouse/pointer position. While the pointer is pressed,
  * particles leave colored trails on a pixel buffer using bilinear interpolation.
  */
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun Grappa(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    startingSettings: Settings
 ) {
-    val settings = remember { Settings() }
-    val particles = remember { Array(settings.nMax) { Particle() } }
+    var settings by remember { mutableStateOf(startingSettings) }
+    val particles = remember { Array(settings.maxParticleCount) { Particle() } }
     var pointerPosition by remember { mutableStateOf(Offset.Zero) }
     var isPointerPressed by remember { mutableStateOf(false) }
     var fps by remember { mutableStateOf(0.0) }
@@ -242,7 +290,7 @@ fun Grappa(
     var lastCanvasSize by remember { mutableStateOf(Size.Zero) }
 
     // Cache text measurements for buttons (measured once, not on every recomposition)
-    val buttonStyle = TextStyle(color = Color(0xFF80E0FF).copy(alpha = 0.7f), fontSize = 14.sp)
+    val buttonStyle = TextStyle(color = settings.buttonColor.copy(alpha = 0.7f), fontSize = 14.sp)
     val buttonLayouts = remember {
         Triple(
             textMeasurer.measure(text = "Clear", style = buttonStyle),
@@ -262,8 +310,7 @@ fun Grappa(
 
     // Animation loop — initializes settings and runs the animation
     LaunchedEffect(Unit) {
-        settings.preset()
-        settings.updateParticles(particles, density)
+        settings.updateParticles(particles, density, pointerPosition)
         var lastFrameNanos = 0L
         while (isActive) {
             withFrameNanos { frameTimeNanos ->
@@ -285,7 +332,7 @@ fun Grappa(
                 // Run physics steps
                 if (trailBuffer != null) {
                     repeat(10) {
-                        for (j in 0 until settings.n) {
+                        for (j in 0 until settings.activeParticleCount) {
                             val p = particles[j]
                             p.vx += (pointerPosition.x - p.x) * p.attraction
                             p.vy += (pointerPosition.y - p.y) * p.attraction
@@ -296,8 +343,9 @@ fun Grappa(
                             if (isPointerPressed) {
                                 trailBuffer?.drawPixel(
                                     p.x, p.y,
-                                    p.red, p.green, p.blue,
-                                    0.15
+                                    p.color.red, p.color.green, p.color.blue,
+                                    p.color.alpha * settings.particleAlphaMultiplier,
+                                    settings.blendMode
                                 )
                             }
                         }
@@ -335,15 +383,15 @@ fun Grappa(
                                     PointerEventType.Release -> {
                                         // Check button clicks on release
                                         if (presetButtonRect.contains(change.position)) {
-                                            settings.preset()
-                                            settings.updateParticles(particles, density)
-                                            trailBuffer?.clear()
+                                            settings = Settings.preset()
+                                            settings.updateParticles(particles, density, pointerPosition)
+                                            trailBuffer?.clear(settings.canvasColor)
                                             drawInvalidationToken++
                                         } else if (randomizeButtonRect.contains(change.position)) {
                                             settings.randomize()
-                                            settings.updateParticles(particles, density)
+                                            settings.updateParticles(particles, density, pointerPosition)
                                         } else if (clearButtonRect.contains(change.position)) {
-                                            trailBuffer?.clear()
+                                            trailBuffer?.clear(settings.canvasColor)
                                             drawInvalidationToken++
                                         }
                                         isPointerPressed = false
@@ -369,7 +417,7 @@ fun Grappa(
                 bitmapWidth = size.width.toInt()
                 bitmapHeight = size.height.toInt()
                 if (bitmapWidth > 0 && bitmapHeight > 0) {
-                    trailBuffer = TrailBuffer(bitmapWidth, bitmapHeight, densityObj)
+                    trailBuffer = TrailBuffer(bitmapWidth, bitmapHeight, settings.canvasColor, densityObj)
                 }
             }
 
@@ -406,14 +454,11 @@ fun Grappa(
             // Draw-phase isolation: reference the token to register a dependency strictly bound to the Draw phase
             val readTokenForInvalidation = drawInvalidationToken
 
-            // Draw black background
-            drawRect(Color.Black)
-
             // Blit the offscreen trail bitmap onto the screen
             trailBuffer?.bitmap?.let { drawImage(it) }
 
             // Draw action buttons
-            val buttonColor = Color(0xFF80E0FF).copy(alpha = 0.7f)
+            val buttonColor = settings.buttonColor.copy(alpha = 0.7f)
             drawButton(clearButtonRect, cachedClearLayout, buttonWidth, buttonHeight, buttonColor)
             drawButton(randomizeButtonRect, cachedRandomizeLayout, buttonWidth, buttonHeight, buttonColor)
             drawButton(presetButtonRect, cachedPresetLayout, buttonWidth, buttonHeight, buttonColor)
