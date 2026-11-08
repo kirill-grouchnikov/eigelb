@@ -69,17 +69,17 @@ class Particle {
 public data class Settings(
     var activeParticleCount: Int = 50,
     val maxParticleCount: Int = 150,
-    private var frictionMin: Double = 0.0,
-    private var frictionMax: Double = 0.0,
-    private var frictionLinearity: Double = 0.0,
-    private var attractionMin: Double = 0.0,
-    private var attractionMax: Double = 0.0,
-    private var attractionLinearity: Double = 0.0,
-    var particleColor: Color = Color(0xFFFF320A),
-    var particleAlphaMultiplier: Double = 0.15,
-    var canvasColor: Color = Color.Black,
-    var buttonColor: Color = Color(0xFF80E0FF),
-    var blendMode: BlendMode = BlendMode.Plus
+    private var frictionMin: Double,
+    private var frictionMax: Double,
+    private var frictionLinearity: Double,
+    private var attractionMin: Double,
+    private var attractionMax: Double,
+    private var attractionLinearity: Double,
+    var particleColor: Color,
+    var particleAlphaMultiplier: Double,
+    var canvasColor: Color,
+    var buttonColor: Color,
+    var blendMode: BlendMode
 ) {
 
     fun randomize() {
@@ -170,10 +170,10 @@ public data class Settings(
                 attractionMax = 3.07,
                 attractionLinearity = 0.93,
                 particleColor = Color(0x60FF4008),
-                particleAlphaMultiplier = 0.1,
+                particleAlphaMultiplier = 0.15,
                 canvasColor = Color.White,
                 buttonColor = Color(0xFF1050C0),
-                blendMode = BlendMode.Difference,
+                blendMode = BlendMode.Exclusion,
             )
         }
     }
@@ -383,7 +383,7 @@ fun Grappa(
                                     PointerEventType.Release -> {
                                         // Check button clicks on release
                                         if (presetButtonRect.contains(change.position)) {
-                                            settings = Settings.preset()
+                                            settings = startingSettings
                                             settings.updateParticles(particles, density, pointerPosition)
                                             trailBuffer?.clear(settings.canvasColor)
                                             drawInvalidationToken++
