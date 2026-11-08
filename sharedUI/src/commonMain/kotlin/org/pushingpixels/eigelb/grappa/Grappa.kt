@@ -169,7 +169,7 @@ public data class Settings(
                 attractionMin = 2.74,
                 attractionMax = 3.07,
                 attractionLinearity = 0.93,
-                particleColor = Color(0x60FF4008),
+                particleColor = Color(0x60FF400C),
                 particleAlphaMultiplier = 0.15,
                 canvasColor = Color.White,
                 buttonColor = Color(0xFF1050C0),

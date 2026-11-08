@@ -15,55 +15,62 @@
  */
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ComposeViewport
-import org.pushingpixels.eigelb.glitzer.*
-import org.pushingpixels.eigelb.grappa.Grappa
+import org.pushingpixels.eigelb.Applet
 
 // This is a modified version of the original source code by Paul Schmidinger
 // from the Java applet effect demos at https://eigelb.at/
 
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)
 fun main() = ComposeViewport {
-    var selectedApplet by remember { mutableStateOf("Glitzer") }
-    val applets = listOf("Glitzer", "Grappa", "Lissajous", "Maus", "Paint")
+    var selectedApplet by remember { mutableStateOf(Applet.GlitzerDefault) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Applet selector bar
-        Row(
+        // Applet selector dropdown
+        var isDropdownExpanded by remember { mutableStateOf(false) }
+        ExposedDropdownMenuBox(
+            expanded = isDropdownExpanded,
+            onExpandedChange = { isDropdownExpanded = !isDropdownExpanded },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
-            horizontalArrangement = Arrangement.Center
+                .padding(8.dp)
+                .align(Alignment.CenterHorizontally)
         ) {
-            for (applet in applets) {
-                val isSelected = applet == selectedApplet
-                OutlinedButton(
-                    onClick = { selectedApplet = applet },
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.surface
+            OutlinedTextField(
+                value = selectedApplet.displayName,
+                onValueChange = { },
+                readOnly = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
+                modifier = Modifier
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+            )
+            ExposedDropdownMenu(
+                expanded = isDropdownExpanded,
+                onDismissRequest = { isDropdownExpanded = false }
+            ) {
+                for (applet in Applet.entries) {
+                    DropdownMenuItem(
+                        text = { Text(applet.displayName) },
+                        onClick = {
+                            selectedApplet = applet
+                            isDropdownExpanded = false
+                        }
                     )
-                ) {
-                    Text(applet)
                 }
             }
         }
 
         // Selected applet canvas
         Box(modifier = Modifier.fillMaxSize()) {
-            when (selectedApplet) {
-                "Glitzer" -> Glitzer(modifier = Modifier.fillMaxSize())
-                "Lissajous" -> Lissajous(modifier = Modifier.fillMaxSize())
-                "Maus" -> Maus(modifier = Modifier.fillMaxSize())
-                "Paint" -> Paint(modifier = Modifier.fillMaxSize())
-                "Grappa" -> Grappa(modifier = Modifier.fillMaxSize())
-            }
+            selectedApplet.render(modifier = Modifier.fillMaxSize())
         }
     }
 }
