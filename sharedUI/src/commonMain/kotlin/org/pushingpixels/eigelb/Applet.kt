@@ -26,23 +26,25 @@ import org.pushingpixels.eigelb.grappa.Settings
 
 enum class Applet(val displayName: String) {
     GlitzerDefault("Glitzer Default"),
-    GlitzerLissajous("Glitzer Lissajous"),
     GlitzerMaus("Glitzer Maus"),
     GlitzerPaint("Glitzer Paint"),
+    GlitzerLissajous("Glitzer Lissajous"),
     GrappaDefault("Grappa Default"),
     GrappaBlue("Grappa Blue"),
-    GrappaWhite("Grappa White");
+    GrappaWhite("Grappa White"),
+    GrappaRainbow("Grappa Rainbow");
 
     @Composable
     fun render(modifier: Modifier) {
         when (this) {
             GlitzerDefault -> Glitzer(modifier = modifier)
-            GlitzerLissajous -> Lissajous(modifier = modifier)
             GlitzerMaus -> Maus(modifier = modifier)
             GlitzerPaint -> Paint(modifier = modifier)
+            GlitzerLissajous -> Lissajous(modifier = modifier)
             GrappaDefault -> Grappa(modifier = modifier, startingSettings = Settings.preset())
             GrappaBlue -> Grappa(modifier = modifier, startingSettings = Settings.blue())
             GrappaWhite -> Grappa(modifier = modifier, startingSettings = Settings.white())
+            GrappaRainbow -> Grappa(modifier = modifier, startingSettings = Settings.rainbow())
         }
     }
 }
