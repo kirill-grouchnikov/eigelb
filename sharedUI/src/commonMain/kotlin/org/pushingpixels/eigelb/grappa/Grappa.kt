@@ -299,6 +299,7 @@ fun Grappa(
     val particles = remember { Array(settings.maxParticleCount) { Particle() } }
     var pointerPosition by remember { mutableStateOf(Offset.Zero) }
     var isPointerPressed by remember { mutableStateOf(false) }
+    var particlesInitialized by remember { mutableStateOf(false) }
     var fps by remember { mutableStateOf(0.0) }
     var elapsedMs by remember { mutableStateOf(0L) }
 
@@ -346,9 +347,8 @@ fun Grappa(
         cachedPresetLayout.size.width
     ) + buttonTextPadding
 
-    // Animation loop — initializes settings and runs the animation
+    // Animation loop — runs the animation
     LaunchedEffect(Unit) {
-        settings.updateParticles(particles, density, pointerPosition, elapsedMs)
         var lastFrameNanos = 0L
         var startFrameNanos: Long? = null
         while (isActive) {
@@ -376,8 +376,8 @@ fun Grappa(
                 // Use a larger divisor to slow down particle movement towards the pointer.
                 val dt = 0.00003 * dtSec / 0.05
 
-                // Run physics steps
-                if (trailBuffer != null) {
+                // Run physics steps only after particles are initialized
+                if (trailBuffer != null && particlesInitialized) {
                     repeat(10) {
                         for (j in 0 until settings.activeParticleCount) {
                             val p = particles[j]
@@ -450,6 +450,11 @@ fun Grappa(
                                         }
                                         pointerPosition = change.position
                                         isPointerPressed = true
+                                        // Initialize particles at the first mouse press position
+                                        if (!particlesInitialized) {
+                                            settings.updateParticles(particles, density, pointerPosition, elapsedMs)
+                                            particlesInitialized = true
+                                        }
                                     }
                                     PointerEventType.Move -> {
                                         pointerPosition = change.position

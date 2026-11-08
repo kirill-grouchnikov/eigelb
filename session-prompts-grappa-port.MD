@@ -110,3 +110,5 @@
 53. Replace Grappa with GrappaNew and remove GrappaNew and its desktop demo
 
 54. The original logic in Grappa.java was manipulating pixel color channels additively. At every iteration, it was adding R, G and B channels on top of the previous pixels, eventually leading up to full white color if there were multiple particles drawn there. Is there a mode on canvas that would restore that functionality?
+
+55. Particles start from the top-left corner of the screen the first time. They should start at the coordinates of the first mouse press.
