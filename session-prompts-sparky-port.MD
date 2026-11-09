@@ -13,3 +13,11 @@
 
 5. In desktopApp module, add a new demo to show the Sparky composable in action, driven by these two image files
 
+6. The frames are precalculated at 600x450 size in LaunchedEffect. Instead, they should be calculated based on the actual size of the canvas after that size is known.
+
+7. Move the call to precalculateFrames to happen after the size is known, instead of in the LaunchEffect that is never actually triggered there
+
+8. The main demo frame is never shown now. Is there a deadlock somewhere?
+
+9. Refactor the code so that the call to precalculateFrame happens in a separate worker unit (coroutine?). Canvas still tracks its size so that precalculateFrame work is kicked off. When the frames are done calculating, the Canvas can draw them based on the value of currentFrame.
+

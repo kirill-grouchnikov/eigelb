@@ -30,7 +30,9 @@ import androidx.compose.ui.unit.LayoutDirection
 import eigelb.sharedui.generated.resources.Res
 import eigelb.sharedui.generated.resources.Image
 import eigelb.sharedui.generated.resources.Star
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.imageResource
 import kotlin.math.PI
 import kotlin.math.sin
@@ -49,7 +51,7 @@ public data class SparkySettings(
     val starSize: Int = 100,
     val scale0Multiplier: Int = 70,
     val thresholdMultiplier: Int = 200,
-    val frameDelayMs: Long = 200,
+    val frameDelayMs: Long = 30,
     val animateBrightness: Boolean = true,
     val starBitmap: ImageBitmap? = null,
     val baseImageBitmap: ImageBitmap? = null,
@@ -92,24 +94,31 @@ fun Sparky(
         baseImageBitmap = settings.baseImageBitmap ?: defaultBaseImageBitmap
     )
 
+    // Canvas size tracking — updated in the draw scope when size becomes available
+    var canvasWidth by remember { mutableStateOf(0) }
+    var canvasHeight by remember { mutableStateOf(0) }
+
     // Generated images and precalculated frames
     var frameBitmaps by remember { mutableStateOf<List<ImageBitmap>?>(null) }
 
     // Animation state
     var currentFrame by remember { mutableIntStateOf(0) }
 
-    // Precalculate frames on first compose
-    LaunchedEffect(Unit) {
-        frameBitmaps = precalculateFrames(600, 450, density, effectiveSettings)
+    // Worker coroutine: precalculate frames on a background dispatcher when canvas size is known
+    LaunchedEffect(canvasWidth, canvasHeight) {
+        if (canvasWidth > 0 && canvasHeight > 0) {
+            frameBitmaps = withContext(Dispatchers.Default) {
+                precalculateFrames(canvasWidth, canvasHeight, density, effectiveSettings)
+            }
+        }
     }
 
     // Animation loop - cycle through precalculated frames
     LaunchedEffect(frameBitmaps) {
+        if (frameBitmaps == null) return@LaunchedEffect
         while (isActive) {
-            if (frameBitmaps != null) {
-                kotlinx.coroutines.delay(settings.frameDelayMs)
-                currentFrame = (currentFrame + 1) % (frameBitmaps?.size ?: 1)
-            }
+            kotlinx.coroutines.delay(settings.frameDelayMs)
+            currentFrame = (currentFrame + 1) % frameBitmaps!!.size
         }
     }
 
@@ -117,6 +126,13 @@ fun Sparky(
         Canvas(
             modifier = Modifier.fillMaxSize()
         ) {
+            // Track canvas size when it becomes available
+            if (canvasWidth != size.width.toInt() || canvasHeight != size.height.toInt()) {
+                canvasWidth = size.width.toInt()
+                canvasHeight = size.height.toInt()
+                currentFrame = 0
+            }
+
             // Show black background during precalculation
             if (frameBitmaps == null) {
                 drawRect(color = Color.Black)
@@ -124,10 +140,10 @@ fun Sparky(
                 // Draw the current frame scaled to fit the canvas
                 val frame = frameBitmaps!![currentFrame]
                 val scale = minOf(size.width / frame.width, size.height / frame.height)
-                val w = frame.width * scale
-                val h = frame.height * scale
-                val x = (size.width - w) / 2f
-                val y = (size.height - h) / 2f
+                val drawW = frame.width * scale
+                val drawH = frame.height * scale
+                val x = (size.width - drawW) / 2f
+                val y = (size.height - drawH) / 2f
                 drawImage(frame, topLeft = Offset(x, y))
             }
         }
