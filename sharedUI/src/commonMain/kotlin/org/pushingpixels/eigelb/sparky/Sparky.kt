@@ -241,13 +241,13 @@ private fun precalculateFrames(
     density: androidx.compose.ui.unit.Density,
     settings: SparkySettings
 ): List<ImageBitmap> {
-    val nBilder = settings.frameCount
+    val animationFramesCount = settings.frameCount
     val starW = settings.starSize
     val scale0 = 0.007 * settings.scale0Multiplier
     val threshold = 0.0003 * settings.thresholdMultiplier
 
     // Read or generate the base brightness data
-    val bildDaten = if (settings.baseImageBitmap != null) {
+    val baseBrightnessData = if (settings.baseImageBitmap != null) {
         readGreenChannelScaled(settings.baseImageBitmap, width, height)
     } else {
         generateBaseImageData(width, height)
@@ -261,31 +261,31 @@ private fun precalculateFrames(
     }
 
     // Read or generate the star template data
-    val sternDaten = if (settings.starBitmap != null) {
+    val starTemplateData = if (settings.starBitmap != null) {
         readGreenChannel(settings.starBitmap)
     } else {
         generateStarData(starW)
     }
 
     // Determine star active positions
-    val sternAktiv = Array(width) { BooleanArray(height) }
+    val starActivePositions = Array(width) { BooleanArray(height) }
     for (y in 0 until height) {
         for (x in 0 until width) {
-            if (Random.nextDouble() < bildDaten[x][y] / 255.0 * threshold) {
-                sternAktiv[x][y] = true
-                bildDaten[x][y] = (35.0 + 220.0 * Random.nextDouble()).toInt()
+            if (Random.nextDouble() < baseBrightnessData[x][y] / 255.0 * threshold) {
+                starActivePositions[x][y] = true
+                baseBrightnessData[x][y] = (35.0 + 220.0 * Random.nextDouble()).toInt()
             } else {
-                sternAktiv[x][y] = false
+                starActivePositions[x][y] = false
             }
         }
     }
 
-    val c1 = actualStarW / 2
+    val starCenter = actualStarW / 2
 
     // Precalculate animation frames
     val frames = mutableListOf<ImageBitmap>()
 
-    for (i in 0 until nBilder) {
+    for (i in 0 until animationFramesCount) {
         // Create offscreen bitmap for this frame
         val frameBitmap = ImageBitmap(width, height)
         val frameCanvas = GraphicsCanvas(frameBitmap)
@@ -297,53 +297,53 @@ private fun precalculateFrames(
         // Star brightness accumulation in int array
         for (y in 0 until height) {
             for (x in 0 until width) {
-                if (sternAktiv[x][y]) {
-                    val bildBrightness = bildDaten[x][y]
-                    val scale = scale0 * bildBrightness / 255.0
+                if (starActivePositions[x][y]) {
+                    val baseBrightness = baseBrightnessData[x][y]
+                    val scale = scale0 * baseBrightness / 255.0
                     val scaleInv = 1.0 / scale
-                    val c2 = actualStarW * scale * 1.414 / 2.0
+                    val starRadius = actualStarW * scale * 1.414 / 2.0
 
-                    val w = x + y + (((x + y) % 2) * 2 - 1) * i * PI / (2.0 * nBilder)
+                    val rotationAngle = x + y + (((x + y) % 2) * 2 - 1) * i * PI / (2.0 * animationFramesCount)
                     val brightness = if (settings.animateBrightness) {
-                        (sin(x + y + 2.0 * PI * i / nBilder) * 0.5 + 0.5) * 0.7 + 0.3
+                        (sin(x + y + 2.0 * PI * i / animationFramesCount) * 0.5 + 0.5) * 0.7 + 0.3
                     } else {
                         1.0
                     }
-                    val cosi = cos(w)
-                    val sinu = sin(w)
+                    val cosi = cos(rotationAngle)
+                    val sinu = sin(rotationAngle)
 
-                    val xMin = (x - c2).toInt()
-                    val xMax = (x + c2).toInt()
-                    val yMin = (y - c2).toInt()
-                    val yMax = (y + c2).toInt()
+                    val xMin = (x - starRadius).toInt()
+                    val xMax = (x + starRadius).toInt()
+                    val yMin = (y - starRadius).toInt()
+                    val yMax = (y + starRadius).toInt()
 
                     var ys2 = 0
                     for (y2 in yMin until yMax) {
                         var xs2 = 0
                         for (x2 in xMin until xMax) {
                             if (x2 >= 0 && y2 >= 0 && x2 < width && y2 < height) {
-                                val xsh = xs2 - c2
-                                val ysh = ys2 - c2
-                                val xs = ((xsh * cosi - ysh * sinu) * scaleInv + c1).toInt()
-                                val ys = ((ysh * cosi + xsh * sinu) * scaleInv + c1).toInt()
+                                val xsh = xs2 - starRadius
+                                val ysh = ys2 - starRadius
+                                val xs = ((xsh * cosi - ysh * sinu) * scaleInv + starCenter).toInt()
+                                val ys = ((ysh * cosi + xsh * sinu) * scaleInv + starCenter).toInt()
                                 if (xs >= 0 && ys >= 0 && xs < actualStarW && ys < actualStarW) {
-                                    val sternVal = sternDaten[xs][ys]
-                                    if (sternVal > 5) {
+                                    val starValue = starTemplateData[xs][ys]
+                                    if (starValue > 5) {
                                         val idx = y2 * width + x2
-                                        val ro = (buffer[x2][y2] and 0xFF0000) ushr 16
-                                        val gr = (buffer[x2][y2] and 0x00FF00) ushr 8
-                                        val bl = buffer[x2][y2] and 0x0000FF
-                                        val help = (brightness * sternVal).toInt()
-                                        val roNew = ro + (help shl 1) / 2
-                                        val grNew = gr + (help shl 1) / 3
-                                        val blNew = bl + (help ushr 1)
+                                        val red = (buffer[x2][y2] and 0xFF0000) ushr 16
+                                        val green = (buffer[x2][y2] and 0x00FF00) ushr 8
+                                        val blue = buffer[x2][y2] and 0x0000FF
+                                        val help = (brightness * starValue).toInt()
+                                        val redNew = red + (help shl 1) / 2
+                                        val greenNew = green + (help shl 1) / 3
+                                        val blueNew = blue + (help ushr 1)
 
                                         // Nested clamping - only check green/blue if red is already clamped
-                                        val roClamped = if (roNew > 255) 255 else roNew
-                                        val grClamped = if (roNew > 255 && grNew > 255) 255 else grNew.coerceAtMost(255)
-                                        val blClamped = if (roNew > 255 && grNew > 255 && blNew > 255) 255 else blNew.coerceAtMost(255)
+                                        val redClamped = if (redNew > 255) 255 else redNew
+                                        val greenClamped = if (redNew > 255 && greenNew > 255) 255 else greenNew.coerceAtMost(255)
+                                        val blueClamped = if (redNew > 255 && greenNew > 255 && blueNew > 255) 255 else blueNew.coerceAtMost(255)
 
-                                        buffer[x2][y2] = (roClamped shl 16) or (grClamped shl 8) or blClamped
+                                        buffer[x2][y2] = (redClamped shl 16) or (greenClamped shl 8) or blueClamped
                                     }
                                 }
                                 xs2++
