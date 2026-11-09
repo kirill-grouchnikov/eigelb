@@ -25,6 +25,7 @@ kotlin {
             api(libs.compose.foundation)
             api(libs.compose.ui.tooling.preview)
             api(libs.compose.material3)
+            implementation(compose.components.resources)
         }
 
         commonTest.dependencies {
@@ -37,5 +38,9 @@ kotlin {
         }
 
     }
-
 }
+
+compose.resources {
+    publicResClass = true
+}
+
