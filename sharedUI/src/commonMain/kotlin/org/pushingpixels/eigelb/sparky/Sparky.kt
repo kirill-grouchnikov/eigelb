@@ -50,7 +50,7 @@ public data class SparkySettings(
     val frameCount: Int = 15,
     val starSize: Int = 100,
     val scale0Multiplier: Int = 70,
-    val thresholdMultiplier: Int = 200,
+    val thresholdMultiplier: Int = 100,
     val frameDelayMs: Long = 30,
     val animateBrightness: Boolean = true,
     val starBitmap: ImageBitmap? = null,
@@ -301,7 +301,7 @@ private fun precalculateFrames(
                     val baseBrightness = baseBrightnessData[x][y]
                     val scale = scale0 * baseBrightness / 255.0
                     val scaleInv = 1.0 / scale
-                    val starRadius = actualStarW * scale * 1.414 / 2.0
+                    val starRadius = density.density * actualStarW * scale * 1.414 / 2.0
 
                     val rotationAngle = x + y + (((x + y) % 2) * 2 - 1) * i * PI / (2.0 * animationFramesCount)
                     val brightness = if (settings.animateBrightness) {
