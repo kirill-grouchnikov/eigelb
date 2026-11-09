@@ -23,6 +23,11 @@ import org.pushingpixels.eigelb.glitzer.Maus
 import org.pushingpixels.eigelb.glitzer.Paint
 import org.pushingpixels.eigelb.grappa.Grappa
 import org.pushingpixels.eigelb.grappa.Settings
+import eigelb.sharedui.generated.resources.Image_PS
+import eigelb.sharedui.generated.resources.Res
+import org.jetbrains.compose.resources.imageResource
+import org.pushingpixels.eigelb.sparky.Sparky
+import org.pushingpixels.eigelb.sparky.SparkySettings
 
 enum class Applet(val displayName: String) {
     GlitzerDefault("Glitzer Default"),
@@ -32,7 +37,9 @@ enum class Applet(val displayName: String) {
     GrappaDefault("Grappa Default"),
     GrappaBlue("Grappa Blue"),
     GrappaWhite("Grappa White"),
-    GrappaRainbow("Grappa Rainbow");
+    GrappaRainbow("Grappa Rainbow"),
+    Sparky("Sparky"),
+    SparkyPS("Sparky PS");
 
     @Composable
     fun render(modifier: Modifier) {
@@ -45,6 +52,11 @@ enum class Applet(val displayName: String) {
             GrappaBlue -> Grappa(modifier = modifier, startingSettings = Settings.blue())
             GrappaWhite -> Grappa(modifier = modifier, startingSettings = Settings.white())
             GrappaRainbow -> Grappa(modifier = modifier, startingSettings = Settings.rainbow())
+            Sparky -> Sparky(modifier = modifier, settings = SparkySettings())
+            SparkyPS -> {
+                val psImage = imageResource(Res.drawable.Image_PS)
+                Sparky(modifier = modifier, settings = SparkySettings(baseImageBitmap = psImage))
+            }
         }
     }
 }
