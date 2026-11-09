@@ -21,3 +21,9 @@
 
 9. Refactor the code so that the call to precalculateFrame happens in a separate worker unit (coroutine?). Canvas still tracks its size so that precalculateFrame work is kicked off. When the frames are done calculating, the Canvas can draw them based on the value of currentFrame.
 
+10. Update the session prompt history MD file with the recent prompts
+
+11. Rename all German variables in Sparky.kt
+
+12. Add another Sparky demo, call it SparkyPS. The starBitmap image in its settings is the same, but the baseImageBitmap should be 064_Sparky/fuerHomepage/Image_PS.jpg from the original source folder. Place this image as a Compose multiplatform resource in sharedUI next to Image.jpg
+
