@@ -38,6 +38,7 @@ import kotlin.math.PI
 import kotlin.math.sin
 import kotlin.math.cos
 import kotlin.random.Random
+import kotlin.time.Clock
 import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 
 // This is a modified version of the original source code by Paul Schmidinger
@@ -113,12 +114,23 @@ fun Sparky(
         }
     }
 
-    // Animation loop - cycle through precalculated frames
+    // Animation loop - driven by display frame timing, matching Grappa pattern
     LaunchedEffect(frameBitmaps) {
         if (frameBitmaps == null) return@LaunchedEffect
+        var startFrameNanos = 0L
         while (isActive) {
-            kotlinx.coroutines.delay(settings.frameDelayMs)
-            currentFrame = (currentFrame + 1) % frameBitmaps!!.size
+            withFrameNanos { frameTimeNanos ->
+                // Track elapsed time since the very beginning of the animation
+                if (startFrameNanos == 0L) {
+                    startFrameNanos = frameTimeNanos
+                } else {
+                    val elapsedMs = (frameTimeNanos - startFrameNanos) / 1_000_000
+                    val msWithinFrame = (elapsedMs % 1000).toInt()
+                    val nominalFrameInterval = 1000 / frameBitmaps!!.size
+                    val frameIndex = (msWithinFrame / nominalFrameInterval).coerceIn(0, frameBitmaps!!.size - 1)
+                    currentFrame = frameIndex
+                }
+            }
         }
     }
 
@@ -287,6 +299,7 @@ private fun precalculateFrames(
 
     for (i in 0 until animationFramesCount) {
         // Create offscreen bitmap for this frame
+        val nanoStart = Clock.System.now()
         val frameBitmap = ImageBitmap(width, height)
         val frameCanvas = GraphicsCanvas(frameBitmap)
         val frameDrawScope = CanvasDrawScope()
@@ -295,9 +308,11 @@ private fun precalculateFrames(
         val buffer = Array(width) { IntArray(height) }
 
         // Star brightness accumulation in int array
+        var count = 0
         for (y in 0 until height) {
             for (x in 0 until width) {
                 if (starActivePositions[x][y]) {
+                    count++
                     val baseBrightness = baseBrightnessData[x][y]
                     val scale = scale0 * baseBrightness / 255.0
                     val scaleInv = 1.0 / scale
@@ -355,6 +370,8 @@ private fun precalculateFrames(
             }
         }
 
+        val nanoMedium = Clock.System.now()
+
         // Transfer buffer to bitmap via CanvasDrawScope
         frameDrawScope.draw(
             density = density,
@@ -365,6 +382,14 @@ private fun precalculateFrames(
             drawRect(color = Color.Black)
             for (y in 0 until height) {
                 for (x in 0 until width) {
+//                    if (starActivePositions[x][y]) {
+//                        drawCircle(
+//                            color = Color(0X40FF0000),
+//                            radius = settings.starBitmap!!.width / 2.0f,
+//                            center = Offset(x + 0.5f, y + 0.5f)
+//                        )
+//                    }
+
                     val colorInt = buffer[x][y]
                     if (colorInt > 0) {
                         val r = ((colorInt shr 16) and 0xFF) / 255f
@@ -379,6 +404,10 @@ private fun precalculateFrames(
                 }
             }
         }
+
+        val nanoEnd = Clock.System.now()
+
+        println("Frame $i, ${nanoMedium.minus(nanoStart).inWholeMilliseconds}+${nanoEnd.minus(nanoMedium).inWholeMilliseconds}")
 
         frames.add(frameBitmap)
     }

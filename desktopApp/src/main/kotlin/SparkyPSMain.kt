@@ -15,15 +15,22 @@
  */
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import eigelb.sharedui.generated.resources.Image
 import eigelb.sharedui.generated.resources.Res
 import eigelb.sharedui.generated.resources.Image_PS
+import eigelb.sharedui.generated.resources.Star
+import eigelb.sharedui.generated.resources.Star_Alpha
 import org.jetbrains.compose.resources.imageResource
 import org.pushingpixels.eigelb.sparky.Sparky
+import org.pushingpixels.eigelb.sparky.SparkyDirect
 import org.pushingpixels.eigelb.sparky.SparkySettings
+import org.pushingpixels.eigelb.sparky.scaleDown
+import org.pushingpixels.eigelb.sparky.toQuadraticAlphaWhite
 import java.awt.Dimension
 
 // This is a modified version of the original source code by Paul Schmidinger
@@ -37,9 +44,19 @@ fun main() = application {
     ) {
         window.minimumSize = Dimension(800, 600)
         val baseImage = imageResource(Res.drawable.Image_PS)
-        Sparky(
+
+        val starImage = imageResource(Res.drawable.Star)
+        //val scaledDownStarImage = scaleDown(starImage, 0.5)
+        val remappedStarImage = toQuadraticAlphaWhite(starImage, Color(0xFF998363))
+
+        SparkyDirect(
             modifier = Modifier.fillMaxSize(),
-            settings = SparkySettings(baseImageBitmap = baseImage)
+            settings = SparkySettings(
+                frameCount = 25,
+                scale0Multiplier = 100,
+                thresholdMultiplier = 60,
+                starBitmap = remappedStarImage,
+                baseImageBitmap = baseImage)
         )
     }
 }

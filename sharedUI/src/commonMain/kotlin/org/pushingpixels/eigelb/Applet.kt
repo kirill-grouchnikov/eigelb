@@ -15,8 +15,14 @@
  */
 package org.pushingpixels.eigelb
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import eigelb.sharedui.generated.resources.Image
+import eigelb.sharedui.generated.resources.Image_CMP
 import org.pushingpixels.eigelb.glitzer.Glitzer
 import org.pushingpixels.eigelb.glitzer.Lissajous
 import org.pushingpixels.eigelb.glitzer.Maus
@@ -25,9 +31,12 @@ import org.pushingpixels.eigelb.grappa.Grappa
 import org.pushingpixels.eigelb.grappa.Settings
 import eigelb.sharedui.generated.resources.Image_PS
 import eigelb.sharedui.generated.resources.Res
+import eigelb.sharedui.generated.resources.Star
 import org.jetbrains.compose.resources.imageResource
 import org.pushingpixels.eigelb.sparky.Sparky
+import org.pushingpixels.eigelb.sparky.SparkyDirect
 import org.pushingpixels.eigelb.sparky.SparkySettings
+import org.pushingpixels.eigelb.sparky.toQuadraticAlphaWhite
 
 enum class Applet(val displayName: String) {
     GlitzerDefault("Glitzer Default"),
@@ -39,7 +48,8 @@ enum class Applet(val displayName: String) {
     GrappaWhite("Grappa White"),
     GrappaRainbow("Grappa Rainbow"),
     Sparky("Sparky"),
-    SparkyPS("Sparky PS");
+    SparkyPS("Sparky PS"),
+    SparkyCMP("Sparky CMP");
 
     @Composable
     fun render(modifier: Modifier) {
@@ -52,10 +62,24 @@ enum class Applet(val displayName: String) {
             GrappaBlue -> Grappa(modifier = modifier, startingSettings = Settings.blue())
             GrappaWhite -> Grappa(modifier = modifier, startingSettings = Settings.white())
             GrappaRainbow -> Grappa(modifier = modifier, startingSettings = Settings.rainbow())
-            Sparky -> Sparky(modifier = modifier, settings = SparkySettings())
+            Sparky -> {
+                SparkyDirect(
+                    modifier = Modifier.sizeIn(maxWidth = 800.dp, maxHeight = 500.dp),
+                    settings = SparkySettings(
+                        starBitmap = toQuadraticAlphaWhite(imageResource(Res.drawable.Star), Color(0xFF998363)),
+                        baseImageBitmap = imageResource(Res.drawable.Image)
+                    )
+                )
+            }
             SparkyPS -> {
-                val psImage = imageResource(Res.drawable.Image_PS)
-                Sparky(modifier = modifier, settings = SparkySettings(baseImageBitmap = psImage))
+                SparkyDirect(modifier = Modifier.sizeIn(maxWidth = 800.dp, maxHeight = 500.dp), settings = SparkySettings(
+                    starBitmap = toQuadraticAlphaWhite(imageResource(Res.drawable.Star), Color(0xFF998363)),
+                    baseImageBitmap = imageResource(Res.drawable.Image_PS)))
+            }
+            SparkyCMP -> {
+                SparkyDirect(modifier = Modifier.sizeIn(maxWidth = 800.dp, maxHeight = 500.dp), settings = SparkySettings(
+                    starBitmap = toQuadraticAlphaWhite(imageResource(Res.drawable.Star), Color(0xFF998363)),
+                    baseImageBitmap = imageResource(Res.drawable.Image_CMP)))
             }
         }
     }
