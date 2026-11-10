@@ -103,7 +103,7 @@ fun Glitzer(
 
                 // Spawn new particles while mouse is pressed
                 var spawned = 0
-                while (spawned < 10 && isPointerPressed) {
+                while (spawned < 20 && isPointerPressed) {
                     val offset = 3.0 * density
                     val spread = 7.0 * density
                     val particle = Particle().apply {
@@ -130,7 +130,7 @@ fun Glitzer(
                     particle.velocityY *= 0.97
                     particle.positionX += dt * particle.velocityX
                     particle.positionY += dt * particle.velocityY
-                    particle.lifespan *= 0.97.pow(dt / 0.040)
+                    particle.lifespan *= 0.99.pow(dt / 0.040)
                 }
 
                 // Trigger recomposition
