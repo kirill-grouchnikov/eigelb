@@ -27,24 +27,25 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
-import eigelb.sharedui.generated.resources.Res
+import androidx.compose.ui.unit.dp
 import eigelb.sharedui.generated.resources.Image
+import eigelb.sharedui.generated.resources.Res
 import eigelb.sharedui.generated.resources.Star
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.imageResource
+import org.pushingpixels.eigelb.sparky.SparkyState.Animating
+import org.pushingpixels.eigelb.sparky.SparkyState.Precalculating
 import kotlin.math.PI
-import kotlin.math.atan2
-import kotlin.math.sin
-import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.sqrt
+import kotlin.math.sin
 import kotlin.random.Random
 import kotlin.time.Clock
 import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
@@ -67,15 +68,20 @@ public data class SparkySettings(
 )
 
 /**
+ * Lifecycle state of the Sparky composable.
+ */
+public enum class SparkyState {
+    Precalculating,
+    Animating
+}
+
+/**
  * Composable that renders the Sparky star animation effect.
  *
  * The algorithm generates a base brightness pattern and star template, then precalculates
  * animation frames by stamping rotated star patterns onto offscreen [ImageBitmap]s using
  * [GraphicsCanvas] + [CanvasDrawScope] (same pattern as Grappa). The animation loop cycles
  * through precalculated frames at configurable intervals.
- *
- * By default, it loads the base brightness map from [Image] and the star pattern from [Star]
- * Compose resources. Pass custom bitmaps via [settings] to override.
  *
  * @param modifier Layout modifier
  * @param settings Configuration for the animation
@@ -91,18 +97,6 @@ fun Sparky(
     val defaultStarBitmap = imageResource(Res.drawable.Star)
     val defaultBaseImageBitmap = imageResource(Res.drawable.Image)
 
-    // Resolve effective bitmaps: use settings if provided, otherwise fall back to resources
-    val effectiveSettings = SparkySettings(
-        frameCount = settings.frameCount,
-        starSize = settings.starSize,
-        scale0Multiplier = settings.scale0Multiplier,
-        thresholdMultiplier = settings.thresholdMultiplier,
-        frameDelayMs = settings.frameDelayMs,
-        animateBrightness = settings.animateBrightness,
-        starBitmap = settings.starBitmap ?: defaultStarBitmap,
-        baseImageBitmap = settings.baseImageBitmap ?: defaultBaseImageBitmap
-    )
-
     // Canvas size tracking — updated in the draw scope when size becomes available
     var canvasWidth by remember { mutableStateOf(0) }
     var canvasHeight by remember { mutableStateOf(0) }
@@ -113,15 +107,26 @@ fun Sparky(
     // Animation state
     var currentFrame by remember { mutableIntStateOf(0) }
 
+    // Lifecycle state: starts Precalculating, moves to Animating when frames are ready
+    var sparkyState by remember { mutableStateOf(Precalculating) }
+
     // Draw-phase invalidation token (bypasses layout phase entirely, matching Grappa pattern)
     var drawInvalidationToken by remember { mutableIntStateOf(0) }
+
+    // Progress tracking: number of frames completed out of total
+    var precalcProgress by remember { mutableStateOf(0) }
 
     // Worker coroutine: precalculate frames on a background dispatcher when canvas size is known
     LaunchedEffect(canvasWidth, canvasHeight) {
         if (canvasWidth > 0 && canvasHeight > 0) {
+            precalcProgress = 0
             frameBitmaps = withContext(Dispatchers.Default) {
-                precalculateFrames(canvasWidth, canvasHeight, density, effectiveSettings)
+                precalculateFrames(canvasWidth, canvasHeight, density, settings) { completed ->
+                    precalcProgress = completed
+                }
             }
+            // Transition to Animating state once frames are ready
+            sparkyState = Animating
             // Fire the lean draw invalidation signal so the Canvas draw scope re-reads frameBitmaps
             drawInvalidationToken++
         }
@@ -150,9 +155,7 @@ fun Sparky(
     }
 
     Box(modifier = modifier) {
-        Canvas(
-            modifier = Modifier.fillMaxSize()
-        ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
             // Draw-phase isolation: reference the token to register a dependency strictly bound to the Draw phase
             val readTokenForInvalidation = drawInvalidationToken
 
@@ -161,42 +164,55 @@ fun Sparky(
                 canvasWidth = size.width.toInt()
                 canvasHeight = size.height.toInt()
                 currentFrame = 0
+                sparkyState = Precalculating
             }
 
             // Show black background during precalculation
-            if (frameBitmaps == null) {
-                drawRect(color = Color.Black)
-            } else {
-                // Draw the current frame scaled to fit the canvas
-                val frame = frameBitmaps!![currentFrame]
-                val scale = minOf(size.width / frame.width, size.height / frame.height)
-                val drawW = frame.width * scale
-                val drawH = frame.height * scale
-                val x = (size.width - drawW) / 2f
-                val y = (size.height - drawH) / 2f
-                drawImage(frame, topLeft = Offset(x, y))
+            drawRect(color = Color.Black)
+
+            when (sparkyState) {
+                Precalculating -> {
+                    // Draw progress indicator during precalculation
+                    val totalFrames = settings.frameCount
+                    val progress = precalcProgress.coerceIn(0, totalFrames)
+                    val fillFraction = if (totalFrames > 0) progress / totalFrames.toFloat() else 0f
+
+                    // Progress bar: 16dp tall, 80% of canvas width, vertically centered
+                    val barHeightPx = with(density) { 10.dp.toPx() }
+                    val barWidth = (size.width * 0.8f)
+                    val barX = (size.width - barWidth) / 2f
+                    val barY = (size.height - barHeightPx) / 2f
+
+                    // Outer white rectangular outline
+                    drawRect(
+                        color = Color.White,
+                        size = Size(barWidth, barHeightPx),
+                        topLeft = Offset(barX, barY),
+                        style = Stroke(width = 2f)
+                    )
+                    // Inner white fill based on progress percentage
+                    if (fillFraction > 0f) {
+                        drawRect(
+                            color = Color.White,
+                            size = Size(barWidth * fillFraction, barHeightPx),
+                            topLeft = Offset(barX, barY)
+                        )
+                    }
+                }
+
+                Animating -> {
+                    // Draw the current frame scaled to fit the canvas
+                    val frame = frameBitmaps!![currentFrame]
+                    val scale = minOf(size.width / frame.width, size.height / frame.height)
+                    val drawW = frame.width * scale
+                    val drawH = frame.height * scale
+                    val x = (size.width - drawW) / 2f
+                    val y = (size.height - drawH) / 2f
+                    drawImage(frame, topLeft = Offset(x, y))
+                }
             }
         }
-    }
-}
-
-/**
- * Extracts the green channel from an [ImageBitmap] as a 2D int array.
- * Matches the Java applet's `ColorModel.getRGBdefault().getGreen(pixel)` behavior.
- */
-private fun readGreenChannel(bitmap: ImageBitmap): Array<IntArray> {
-    val w = bitmap.width
-    val h = bitmap.height
-    val pixels = IntArray(w * h)
-    bitmap.readPixels(pixels)
-    val data = Array(w) { IntArray(h) }
-    for (i in 0 until (w * h)) {
-        val pixel = pixels[i]
-        // Extract green channel from ARGB_8888: 0xAARRGGBB
-        val green = (pixel shr 8) and 0xFF
-        data[i % w][i / w] = green
-    }
-    return data
+   }
 }
 
 /**
@@ -222,54 +238,14 @@ private fun readGreenChannelScaled(bitmap: ImageBitmap, targetW: Int, targetH: I
 }
 
 /**
- * Generates a procedural base image brightness pattern when no image is provided.
- */
-private fun generateBaseImageData(width: Int, height: Int): Array<IntArray> {
-    val data = Array(width) { IntArray(height) }
-    for (y in 0 until height) {
-        for (x in 0 until width) {
-            data[x][y] = (35 + 220 * Random.nextDouble()).toInt()
-        }
-    }
-    return data
-}
-
-/**
- * Generates a procedural star template when no star image is provided.
- * Creates a simple star-like pattern with a bright center fading to edges.
- */
-private fun generateStarData(starW: Int): Array<IntArray> {
-    val data = Array(starW) { IntArray(starW) }
-    val center = starW / 2
-    for (y in 0 until starW) {
-        for (x in 0 until starW) {
-            val dx = x - center
-            val dy = y - center
-            val dist = sqrt((dx * dx + dy * dy).toDouble())
-            val maxDist = center * 0.8
-            if (dist < maxDist) {
-                // Star shape with points
-                val angle = atan2(dy.toDouble(), dx.toDouble())
-                val points = 5
-                val starFactor = 0.5 + 0.5 * cos(points * angle)
-                val brightness = ((1.0 - dist / maxDist) * starFactor * 255).toInt()
-                data[x][y] = brightness.coerceIn(0, 255)
-            } else {
-                data[x][y] = 0
-            }
-        }
-    }
-    return data
-}
-
-/**
  * Precalculates all animation frames for the given canvas size.
  */
 private fun precalculateFrames(
     width: Int,
     height: Int,
     density: Density,
-    settings: SparkySettings
+    settings: SparkySettings,
+    onProgress: (Int) -> Unit = {}
 ): List<ImageBitmap> {
     val animationFramesCount = settings.frameCount
     val starW = settings.starSize
@@ -277,18 +253,11 @@ private fun precalculateFrames(
     val threshold = 0.0003 * settings.thresholdMultiplier
 
     // Read or generate the base brightness data
-    val baseBrightnessData = if (settings.baseImageBitmap != null) {
-        readGreenChannelScaled(settings.baseImageBitmap, width, height)
-    } else {
-        generateBaseImageData(width, height)
-    }
+    val baseBrightnessData =
+        readGreenChannelScaled(settings.baseImageBitmap!!, width, height)
 
     // Use the actual star bitmap size if provided, otherwise fall back to settings.
-    val actualStarW = if (settings.starBitmap != null) {
-        settings.starBitmap.width
-    } else {
-        starW
-    }
+    val actualStarW = settings.starBitmap!!.width
 
     // Determine star active positions
     val nano1 = Clock.System.now()
@@ -309,7 +278,7 @@ private fun precalculateFrames(
     // Precalculate animation frames
     val frames = mutableListOf<ImageBitmap>()
     val reusableMatrix = Matrix()
-    val bitmap = settings.starBitmap!!
+    val bitmap = settings.starBitmap
 
     for (i in 0 until animationFramesCount) {
         // Create offscreen bitmap for this frame
@@ -384,6 +353,7 @@ private fun precalculateFrames(
         println("\tscale in [$minScale-$maxScale]")
 
         frames.add(frameBitmap)
+        onProgress(i + 1)
     }
 
     return frames

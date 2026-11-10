@@ -27,3 +27,10 @@
 
 12. Add another Sparky demo, call it SparkyPS. The starBitmap image in its settings is the same, but the baseImageBitmap should be 064_Sparky/fuerHomepage/Image_PS.jpg from the original source folder. Place this image as a Compose multiplatform resource in sharedUI next to Image.jpg
 
+13. Add a state enum to Sparky. The state has two values - Precalculating and Animating. Sparky starts in Precalculating state, and moves to Animating when precalculareFrames returns
+
+14. Draw a progress indicator to the main Sparky composable when it is in the Precalculating phase. The indicator tracks how many of the frameBitmaps have been calculated, and updates the visual display of the indicator. The visuals of the indicator are a 16-dp tall white rectangular outline, with an inner white fill that matches the percentage of the calculated bitmaps.
+
+15. In this new implementation with the progress indicator, its visuals should span the full width of the canvas, with 40dp side paddings. Its height should be 16dp, and centered vertically within the canvas.
+
+16. Update the progress indicator width to be 80% of the canvas width
