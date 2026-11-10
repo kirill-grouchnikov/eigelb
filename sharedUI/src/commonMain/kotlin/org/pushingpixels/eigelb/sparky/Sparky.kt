@@ -127,14 +127,12 @@ fun Sparky(
             val threshold = 0.0003 * settings.thresholdMultiplier
             val baseBrightnessData = readGreenChannelScaled(settings.baseImageBitmap!!, canvasWidth, canvasHeight)
             val actualStarW = settings.starBitmap!!.width
-            val starActivePositions = Array(canvasWidth) { BooleanArray(canvasHeight) }
+            val starActivePositions = mutableListOf<Pair<Int, Int>>()
             for (y in 0 until canvasHeight) {
                 for (x in 0 until canvasWidth) {
                     if (Random.nextDouble() < baseBrightnessData[x][y] / 255.0 * threshold) {
-                        starActivePositions[x][y] = true
+                        starActivePositions.add(x to y)
                         baseBrightnessData[x][y] = (35.0 + 220.0 * Random.nextDouble()).toInt()
-                    } else {
-                        starActivePositions[x][y] = false
                     }
                 }
             }
@@ -154,31 +152,27 @@ fun Sparky(
                     size = Size(canvasWidth.toFloat(), canvasHeight.toFloat())
                 ) {
                     drawRect(color = Color.Black)
-                    for (y in 0 until canvasHeight) {
-                        for (x in 0 until canvasWidth) {
-                            if (starActivePositions[x][y]) {
-                                val baseBrightness = baseBrightnessData[x][y]
-                                val scale = scale0 * baseBrightness / 255.0
-                                val starRadius = density.density * actualStarW * scale * 1.414 / 2.0
-                                val rotationAngle = x + y + (((x + y) % 2) * 2 - 1) * i * PI / (2.0 * animationFramesCount)
-                                val brightness = if (settings.animateBrightness) {
-                                    (sin(x + y + 2.0 * PI * i / animationFramesCount) * 0.5 + 0.5) * 0.7 + 0.3
-                                } else {
-                                    1.0
-                                }
-                                withTransform({
-                                    translate(x.toFloat(), y.toFloat())
-                                    rotate(degrees = rotationAngle.toFloat() * 180.0f / PI.toFloat(), pivot = Offset.Zero)
-                                    scale(scale.toFloat(), scale.toFloat(), pivot = Offset.Zero)
-                                }) {
-                                    drawImage(
-                                        image = bitmap,
-                                        topLeft = Offset(-bitmap.width / 2.0f, -bitmap.height / 2.0f),
-                                        alpha = brightness.toFloat(),
-                                        blendMode = BlendMode.Plus,
-                                    )
-                                }
-                            }
+                    for ((x, y) in starActivePositions) {
+                        val baseBrightness = baseBrightnessData[x][y]
+                        val scale = scale0 * baseBrightness / 255.0
+                        val starRadius = density.density * actualStarW * scale * 1.414 / 2.0
+                        val rotationAngle = x + y + (((x + y) % 2) * 2 - 1) * i * PI / (2.0 * animationFramesCount)
+                        val brightness = if (settings.animateBrightness) {
+                            (sin(x + y + 2.0 * PI * i / animationFramesCount) * 0.5 + 0.5) * 0.7 + 0.3
+                        } else {
+                            1.0
+                        }
+                        withTransform({
+                            translate(x.toFloat(), y.toFloat())
+                            rotate(degrees = rotationAngle.toFloat() * 180.0f / PI.toFloat(), pivot = Offset.Zero)
+                            scale(scale.toFloat(), scale.toFloat(), pivot = Offset.Zero)
+                        }) {
+                            drawImage(
+                                image = bitmap,
+                                topLeft = Offset(-bitmap.width / 2.0f, -bitmap.height / 2.0f),
+                                alpha = brightness.toFloat(),
+                                blendMode = BlendMode.Plus,
+                            )
                         }
                     }
                 }
