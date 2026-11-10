@@ -4,6 +4,8 @@ This is a Compose Multiplatform port of Paul Schmidinger's Java applet effect de
 Live web demos can be accessed at https://pushing-pixels.org/demos/eigelb/. This port is available under
 the terms of the Apache license.
 
+<img src="https://raw.githubusercontent.com/kirill-grouchnikov/eigelb/ember/docs/all.jpg" border=0>
+
 ### Desktop
 * Run the desktop application for Glitzer: `./gradlew :desktopApp:run` 
 * Other demos (Grappa, Sparky) have their `main()` entrypoints under `desktopApp/src/main/kotlin`
