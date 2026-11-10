@@ -26,7 +26,7 @@ import eigelb.sharedui.generated.resources.Star
 import org.jetbrains.compose.resources.imageResource
 import org.pushingpixels.eigelb.sparky.Sparky
 import org.pushingpixels.eigelb.sparky.SparkySettings
-import org.pushingpixels.eigelb.sparky.toQuadraticAlphaWhite
+import org.pushingpixels.eigelb.sparky.transformSparkyStamp
 
 // This is a modified version of the original source code by Paul Schmidinger
 // from the Java applet effect demos at https://eigelb.at/
@@ -39,17 +39,18 @@ fun main() = application {
     ) {
         //window.minimumSize = Dimension(800, 500)
         val baseImage = imageResource(Res.drawable.Image_CMP)
-
-        val starImage = imageResource(Res.drawable.Star)
-        val remappedStarImage = toQuadraticAlphaWhite(starImage, Color(0xFF998363))
+        val starImage = transformSparkyStamp(
+            source = imageResource(Res.drawable.Star),
+            alphaPower = 0.7f,
+            targetColor = Color(0xFF998363))
 
         Sparky(
             modifier = Modifier.size(800.dp, 500.dp),
             settings = SparkySettings(
                 frameCount = 25,
-                scale0Multiplier = 100,
+                scaleMultiplier = 80,
                 thresholdMultiplier = 70,
-                starBitmap = remappedStarImage,
+                starBitmap = starImage,
                 baseImageBitmap = baseImage)
         )
     }

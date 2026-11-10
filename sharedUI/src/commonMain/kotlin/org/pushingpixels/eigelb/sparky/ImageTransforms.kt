@@ -62,19 +62,15 @@ public fun scaleDown(source: ImageBitmap, scaleFactor: Double): ImageBitmap {
 
 /**
  * Converts an [ImageBitmap] to a new bitmap of the same size where each pixel is white
- * with an alpha channel that has a quadratic relationship to the original pixel's brightness.
- *
- * - A pixel with zero brightness gets zero alpha (fully transparent).
- * - A pixel with half brightness (128) gets ~25% alpha.
- * - A pixel with full brightness (255) gets 100% alpha (fully opaque white).
+ * with an alpha channel that has a power relationship to the original pixel's brightness.
  *
  * The brightness of each input pixel is computed as the average of its RGB channels.
- * The alpha is calculated as: `alpha = (brightness / 255)^2 * 255`.
+ * The alpha is calculated as: `alpha = (brightness / 255) ^ alphaPower`.
  *
  * @param source The input image bitmap
  * @return A new bitmap of the same size with white pixels and quadratic alpha values
  */
-public fun toQuadraticAlphaWhite(source: ImageBitmap, target: Color): ImageBitmap {
+public fun transformSparkyStamp(source: ImageBitmap, alphaPower: Float, targetColor: Color): ImageBitmap {
     val width = source.width
     val height = source.height
     val result = ImageBitmap(width, height)
@@ -97,7 +93,7 @@ public fun toQuadraticAlphaWhite(source: ImageBitmap, target: Color): ImageBitma
 
         // Quadratic mapping: alpha = (brightness / 255)^2 * 255
         val normalized = brightness / 255.0f
-        alphas[i] = normalized.pow(0.7f).coerceIn(0f, 1f)
+        alphas[i] = normalized.pow(alphaPower).coerceIn(0f, 1f)
     }
 
     // Write pixels to the result bitmap via GraphicsCanvas + CanvasDrawScope
@@ -114,7 +110,7 @@ public fun toQuadraticAlphaWhite(source: ImageBitmap, target: Color): ImageBitma
                 val alpha = alphas[y * width + x]
                 if (alpha > 0f) {
                     drawCircle(
-                        color = Color(red = target.red, green = target.green, blue = target.blue, alpha = alpha),
+                        color = Color(red = targetColor.red, green = targetColor.green, blue = targetColor.blue, alpha = alpha),
                         radius = 0.5f,
                         center = Offset(x + 0.5f, y + 0.5f)
                     )

@@ -34,7 +34,7 @@ import eigelb.sharedui.generated.resources.Star
 import org.jetbrains.compose.resources.imageResource
 import org.pushingpixels.eigelb.sparky.Sparky
 import org.pushingpixels.eigelb.sparky.SparkySettings
-import org.pushingpixels.eigelb.sparky.toQuadraticAlphaWhite
+import org.pushingpixels.eigelb.sparky.transformSparkyStamp
 
 enum class Applet(val displayName: String) {
     GlitzerDefault("Glitzer Default"),
@@ -64,20 +64,48 @@ enum class Applet(val displayName: String) {
                 Sparky(
                     modifier = Modifier.sizeIn(maxWidth = 800.dp, maxHeight = 500.dp),
                     settings = SparkySettings(
-                        starBitmap = toQuadraticAlphaWhite(imageResource(Res.drawable.Star), Color(0xFF998363)),
+                        starBitmap = transformSparkyStamp(
+                            source = imageResource(Res.drawable.Star),
+                            alphaPower = 0.7f,
+                            targetColor = Color(0xFF998363)
+                        ),
                         baseImageBitmap = imageResource(Res.drawable.Image)
                     )
                 )
             }
+
             SparkyPS -> {
-                Sparky(modifier = Modifier.sizeIn(maxWidth = 800.dp, maxHeight = 500.dp), settings = SparkySettings(
-                    starBitmap = toQuadraticAlphaWhite(imageResource(Res.drawable.Star), Color(0xFF998363)),
-                    baseImageBitmap = imageResource(Res.drawable.Image_PS)))
+                Sparky(
+                    modifier = Modifier.sizeIn(maxWidth = 800.dp, maxHeight = 500.dp),
+                    settings = SparkySettings(
+                        frameCount = 25,
+                        scaleMultiplier = 100,
+                        thresholdMultiplier = 60,
+                        starBitmap = transformSparkyStamp(
+                            source = imageResource(Res.drawable.Star),
+                            alphaPower = 0.7f,
+                            targetColor = Color(0xFF998363)
+                        ),
+                        baseImageBitmap = imageResource(Res.drawable.Image_PS)
+                    )
+                )
             }
+
             SparkyCMP -> {
-                Sparky(modifier = Modifier.sizeIn(maxWidth = 800.dp, maxHeight = 500.dp), settings = SparkySettings(
-                    starBitmap = toQuadraticAlphaWhite(imageResource(Res.drawable.Star), Color(0xFF998363)),
-                    baseImageBitmap = imageResource(Res.drawable.Image_CMP)))
+                Sparky(
+                    modifier = Modifier.sizeIn(maxWidth = 800.dp, maxHeight = 500.dp),
+                    settings = SparkySettings(
+                        frameCount = 25,
+                        scaleMultiplier = 80,
+                        thresholdMultiplier = 70,
+                        starBitmap = transformSparkyStamp(
+                            source = imageResource(Res.drawable.Star),
+                            alphaPower = 0.7f,
+                            targetColor = Color(0xFF998363)
+                        ),
+                        baseImageBitmap = imageResource(Res.drawable.Image_CMP)
+                    )
+                )
             }
         }
     }

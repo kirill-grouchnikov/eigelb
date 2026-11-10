@@ -34,3 +34,7 @@
 15. In this new implementation with the progress indicator, its visuals should span the full width of the canvas, with 40dp side paddings. Its height should be 16dp, and centered vertically within the canvas.
 
 16. Update the progress indicator width to be 80% of the canvas width
+
+17. In the web version of Compose Multiplatform, calling precalculateFrames in withContext(Dispatchers.Default) doesn't work since the web target is a single threaded environment. How can the current precalculation be implemented (maybe on the main thread) in a way that still shows the preloading progress?
+
+18. The first time the web demo for Sparky loads, the precalculated frames are all black. They are the right size, but they don't have the right pixels.

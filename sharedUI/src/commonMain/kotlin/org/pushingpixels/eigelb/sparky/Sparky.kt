@@ -25,29 +25,23 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import eigelb.sharedui.generated.resources.Image
 import eigelb.sharedui.generated.resources.Res
 import eigelb.sharedui.generated.resources.Star
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.imageResource
 import org.pushingpixels.eigelb.sparky.SparkyState.Animating
 import org.pushingpixels.eigelb.sparky.SparkyState.Precalculating
 import kotlin.math.PI
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.sin
 import kotlin.random.Random
-import kotlin.time.Clock
 import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 
 // This is a modified version of the original source code by Paul Schmidinger
@@ -59,12 +53,12 @@ import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 public data class SparkySettings(
     val frameCount: Int = 15,
     val starSize: Int = 100,
-    val scale0Multiplier: Int = 70,
+    val scaleMultiplier: Int = 70,
     val thresholdMultiplier: Int = 100,
     val frameDelayMs: Long = 30,
     val animateBrightness: Boolean = true,
-    val starBitmap: ImageBitmap? = null,
-    val baseImageBitmap: ImageBitmap? = null,
+    val starBitmap: ImageBitmap,
+    val baseImageBitmap: ImageBitmap,
 )
 
 /**
@@ -116,18 +110,91 @@ fun Sparky(
     // Progress tracking: number of frames completed out of total
     var precalcProgress by remember { mutableStateOf(0) }
 
-    // Worker coroutine: precalculate frames on a background dispatcher when canvas size is known
-    LaunchedEffect(canvasWidth, canvasHeight) {
+    // Worker coroutine: precalculate frames on the main thread, one frame at a time.
+    // On Web, Dispatchers.Default is single-threaded and would block the UI, so we run on the
+    // main thread and yield after each frame to keep the progress indicator updating.
+    // The frame loop is directly in LaunchedEffect (not in a suspend function) so that the
+    // drawInvalidationToken increment can be processed by Compose between frames.
+    // The LaunchedEffect keys include bitmap dimensions so it waits for images to be decoded
+    // on Web where imageResource() may return an undecoded bitmap initially.
+    LaunchedEffect(canvasWidth, canvasHeight, settings.starBitmap.width, settings.starBitmap.height, settings.baseImageBitmap.width, settings.baseImageBitmap.height) {
         if (canvasWidth > 0 && canvasHeight > 0) {
             precalcProgress = 0
-            frameBitmaps = withContext(Dispatchers.Default) {
-                precalculateFrames(canvasWidth, canvasHeight, density, settings) { completed ->
-                    precalcProgress = completed
+
+            // Setup: read base brightness data and determine star active positions
+            val animationFramesCount = settings.frameCount
+            val scale0 = 0.007 * settings.scaleMultiplier
+            val threshold = 0.0003 * settings.thresholdMultiplier
+            val baseBrightnessData = readGreenChannelScaled(settings.baseImageBitmap!!, canvasWidth, canvasHeight)
+            val actualStarW = settings.starBitmap!!.width
+            val starActivePositions = Array(canvasWidth) { BooleanArray(canvasHeight) }
+            for (y in 0 until canvasHeight) {
+                for (x in 0 until canvasWidth) {
+                    if (Random.nextDouble() < baseBrightnessData[x][y] / 255.0 * threshold) {
+                        starActivePositions[x][y] = true
+                        baseBrightnessData[x][y] = (35.0 + 220.0 * Random.nextDouble()).toInt()
+                    } else {
+                        starActivePositions[x][y] = false
+                    }
                 }
             }
-            // Transition to Animating state once frames are ready
+
+            // Compute frames one at a time, yielding between each so the UI can update
+            val frames = mutableListOf<ImageBitmap>()
+            val bitmap = settings.starBitmap
+            for (i in 0 until animationFramesCount) {
+                val frameBitmap = ImageBitmap(canvasWidth, canvasHeight)
+                val frameCanvas = GraphicsCanvas(frameBitmap)
+                val frameDrawScope = CanvasDrawScope()
+
+                frameDrawScope.draw(
+                    density = density,
+                    layoutDirection = LayoutDirection.Ltr,
+                    canvas = frameCanvas,
+                    size = Size(canvasWidth.toFloat(), canvasHeight.toFloat())
+                ) {
+                    drawRect(color = Color.Black)
+                    for (y in 0 until canvasHeight) {
+                        for (x in 0 until canvasWidth) {
+                            if (starActivePositions[x][y]) {
+                                val baseBrightness = baseBrightnessData[x][y]
+                                val scale = scale0 * baseBrightness / 255.0
+                                val starRadius = density.density * actualStarW * scale * 1.414 / 2.0
+                                val rotationAngle = x + y + (((x + y) % 2) * 2 - 1) * i * PI / (2.0 * animationFramesCount)
+                                val brightness = if (settings.animateBrightness) {
+                                    (sin(x + y + 2.0 * PI * i / animationFramesCount) * 0.5 + 0.5) * 0.7 + 0.3
+                                } else {
+                                    1.0
+                                }
+                                withTransform({
+                                    translate(x.toFloat(), y.toFloat())
+                                    rotate(degrees = rotationAngle.toFloat() * 180.0f / PI.toFloat(), pivot = Offset.Zero)
+                                    scale(scale.toFloat(), scale.toFloat(), pivot = Offset.Zero)
+                                }) {
+                                    drawImage(
+                                        image = bitmap,
+                                        topLeft = Offset(-bitmap.width / 2.0f, -bitmap.height / 2.0f),
+                                        alpha = brightness.toFloat(),
+                                        blendMode = BlendMode.Plus,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                frames.add(frameBitmap)
+
+                // Update progress and fire draw invalidation BEFORE yielding
+                precalcProgress = i + 1
+                drawInvalidationToken++
+                // Yield control back to the event loop so Compose can process the state changes
+                // and re-render the progress indicator. delay(1) ensures the next event loop tick
+                // processes the drawInvalidationToken increment on Web's single-threaded runtime.
+                delay(1)
+            }
+
+            frameBitmaps = frames
             sparkyState = Animating
-            // Fire the lean draw invalidation signal so the Canvas draw scope re-reads frameBitmaps
             drawInvalidationToken++
         }
     }
@@ -150,6 +217,8 @@ fun Sparky(
                     val frameIndex = (msWithinFrame / nominalFrameInterval).coerceIn(0, frames.size - 1)
                     currentFrame = frameIndex
                 }
+                // Fire draw invalidation so the Canvas draw scope re-reads currentFrame on Web
+                drawInvalidationToken++
             }
         }
     }
@@ -211,6 +280,17 @@ fun Sparky(
                     drawImage(frame, topLeft = Offset(x, y))
                 }
             }
+//            // Display current state in the top left corner
+//            val stateLayout: TextLayoutResult = textMeasurer.measure(
+//                text = sparkyState.name + ":" + canvasWidth + "x" + canvasHeight + ":" + currentFrame +
+//                        ":" + frameBitmaps?.size + " - " + frameBitmaps?.get(currentFrame)?.width +
+//                        "x" + frameBitmaps?.get(currentFrame)?.height +
+//                        " " + settings.starBitmap.width + "x" + settings.starBitmap.height +
+//                        " " + settings.baseImageBitmap.width + "x" + settings.baseImageBitmap.height
+//                ,
+//                style = TextStyle(color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+//            )
+//            drawText(textLayoutResult = stateLayout, topLeft = Offset(8f, 8f))
         }
    }
 }
@@ -237,124 +317,3 @@ private fun readGreenChannelScaled(bitmap: ImageBitmap, targetW: Int, targetH: I
     return data
 }
 
-/**
- * Precalculates all animation frames for the given canvas size.
- */
-private fun precalculateFrames(
-    width: Int,
-    height: Int,
-    density: Density,
-    settings: SparkySettings,
-    onProgress: (Int) -> Unit = {}
-): List<ImageBitmap> {
-    val animationFramesCount = settings.frameCount
-    val starW = settings.starSize
-    val scale0 = 0.007 * settings.scale0Multiplier
-    val threshold = 0.0003 * settings.thresholdMultiplier
-
-    // Read or generate the base brightness data
-    val baseBrightnessData =
-        readGreenChannelScaled(settings.baseImageBitmap!!, width, height)
-
-    // Use the actual star bitmap size if provided, otherwise fall back to settings.
-    val actualStarW = settings.starBitmap!!.width
-
-    // Determine star active positions
-    val nano1 = Clock.System.now()
-    val starActivePositions = Array(width) { BooleanArray(height) }
-    for (y in 0 until height) {
-        for (x in 0 until width) {
-            if (Random.nextDouble() < baseBrightnessData[x][y] / 255.0 * threshold) {
-                starActivePositions[x][y] = true
-                baseBrightnessData[x][y] = (35.0 + 220.0 * Random.nextDouble()).toInt()
-            } else {
-                starActivePositions[x][y] = false
-            }
-        }
-    }
-    val nano2 = Clock.System.now()
-    println("Star positions ${nano2.minus(nano1).inWholeMilliseconds}")
-
-    // Precalculate animation frames
-    val frames = mutableListOf<ImageBitmap>()
-    val reusableMatrix = Matrix()
-    val bitmap = settings.starBitmap
-
-    for (i in 0 until animationFramesCount) {
-        // Create offscreen bitmap for this frame
-        val nanoStart = Clock.System.now()
-        val frameBitmap = ImageBitmap(width, height)
-        val frameCanvas = GraphicsCanvas(frameBitmap)
-        val frameDrawScope = CanvasDrawScope()
-        var minScale = 10000000.0
-        var maxScale = 0.0
-
-        // Transfer buffer to bitmap via CanvasDrawScope
-        frameDrawScope.draw(
-            density = density,
-            layoutDirection = LayoutDirection.Ltr,
-            canvas = frameCanvas,
-            size = Size(width.toFloat(), height.toFloat())
-        ) {
-            drawRect(color = Color.Black)
-            for (y in 0 until height) {
-                for (x in 0 until width) {
-                    if (starActivePositions[x][y]) {
-                        val baseBrightness = baseBrightnessData[x][y]
-                        val scale = scale0 * baseBrightness / 255.0
-                        minScale = min(minScale, scale)
-                        maxScale = max(maxScale, scale)
-                        val scaleInv = 1.0 / scale
-                        val starRadius = density.density * actualStarW * scale * 1.414 / 2.0
-
-                        val rotationAngle = x + y + (((x + y) % 2) * 2 - 1) * i * PI / (2.0 * animationFramesCount)
-                        val brightness = if (settings.animateBrightness) {
-                            (sin(x + y + 2.0 * PI * i / animationFramesCount) * 0.5 + 0.5) * 0.7 + 0.3
-                        } else {
-                            1.0
-                        }
-
-                        // 3. Mutate the single matrix instead of allocating a new one
-//                        reusableMatrix.reset() // Reset to Identity matrix
-//
-//                        // Transformations apply in reverse order (Translate -> Rotate -> Scale)
-//                        reusableMatrix.translate(x.toFloat(), y.toFloat())
-//                        reusableMatrix.rotateZ(rotationAngle.toFloat() * 180.0f / PI.toFloat())
-//                        reusableMatrix.scale(scale.toFloat())
-//                        reusableMatrix.translate(-bitmap.width / 2.0f, -bitmap.height /2.0f)
-
-                        // Move pivot point to the center of the bitmap
-//                        reusableMatrix.translate(-halfWidth, -halfHeight)
-
-                        withTransform({
-//                            transform(reusableMatrix)
-                            translate(x.toFloat(), y.toFloat())
-                            rotate(degrees = rotationAngle.toFloat() * 180.0f / PI.toFloat(),
-                                pivot = Offset.Zero)
-                            scale(scale.toFloat(), scale.toFloat(), pivot = Offset.Zero)
-//                                //pivot = Offset(x.toFloat(), y.toFloat()))
-                        }) {
-//                            val rectSize = 40f// * scale.toFloat()
-//                            drawRect(color = Color.Red.copy(alpha = 0.7f), topLeft = Offset(-rectSize/2f, -rectSize/2f), size = Size(rectSize, rectSize))
-                            drawImage(
-                                image = bitmap,
-                                topLeft = Offset(-bitmap.width / 2.0f, -bitmap.height /2.0f),
-                                alpha = brightness.toFloat(),
-                                blendMode = BlendMode.Plus,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        val nanoEnd = Clock.System.now()
-
-        println("Frame $i, ${nanoEnd.minus(nanoStart).inWholeMilliseconds}")
-        println("\tscale in [$minScale-$maxScale]")
-
-        frames.add(frameBitmap)
-        onProgress(i + 1)
-    }
-
-    return frames
-}

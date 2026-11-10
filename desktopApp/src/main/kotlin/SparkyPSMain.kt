@@ -26,7 +26,7 @@ import eigelb.sharedui.generated.resources.Star
 import org.jetbrains.compose.resources.imageResource
 import org.pushingpixels.eigelb.sparky.Sparky
 import org.pushingpixels.eigelb.sparky.SparkySettings
-import org.pushingpixels.eigelb.sparky.toQuadraticAlphaWhite
+import org.pushingpixels.eigelb.sparky.transformSparkyStamp
 import java.awt.Dimension
 
 // This is a modified version of the original source code by Paul Schmidinger
@@ -40,18 +40,18 @@ fun main() = application {
     ) {
         window.minimumSize = Dimension(800, 600)
         val baseImage = imageResource(Res.drawable.Image_PS)
-
-        val starImage = imageResource(Res.drawable.Star)
-        //val scaledDownStarImage = scaleDown(starImage, 0.5)
-        val remappedStarImage = toQuadraticAlphaWhite(starImage, Color(0xFF998363))
+        val starImage = transformSparkyStamp(
+            source = imageResource(Res.drawable.Star),
+            alphaPower = 0.7f,
+            targetColor = Color(0xFF998363))
 
         Sparky(
             modifier = Modifier.fillMaxSize(),
             settings = SparkySettings(
                 frameCount = 25,
-                scale0Multiplier = 100,
+                scaleMultiplier = 100,
                 thresholdMultiplier = 60,
-                starBitmap = remappedStarImage,
+                starBitmap = starImage,
                 baseImageBitmap = baseImage)
         )
     }
