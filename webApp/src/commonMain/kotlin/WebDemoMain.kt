@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.getValue
@@ -22,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ComposeViewport
 import org.pushingpixels.eigelb.Applet
@@ -69,8 +71,8 @@ fun main() = ComposeViewport {
         }
 
         // Selected applet canvas
-        Box(modifier = Modifier.fillMaxSize()) {
-            selectedApplet.render(modifier = Modifier.fillMaxSize())
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+            selectedApplet.render(modifier = Modifier)
         }
     }
 }
