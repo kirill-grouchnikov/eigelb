@@ -3,6 +3,8 @@
 
 ---
 
+Note - before prompt #51 in the list below, a separate Gemini session was used. See its prompts at the end. 
+
 1. Make a new "grappa" package under org.pushingpixels.eigelb in sharedUI/commonMain
 
 2. The local ~/Downloads/PaulAppletFiles/090_Grappa2/Grappa.java is a Java applet that uses an offscreen image sized to the viewport size to create an animated graphic effect that is then drawn on the screen for every frame. Port this to Compose Multiplatform as a @Composable function. Consider using PixelMapper for migrating the original SmiSchirm_c, with Skia's Bitmap allocPixels and installPixels to get them to a bitmap that is then rendered on a Canvas in the composable function.
@@ -112,3 +114,9 @@
 54. The original logic in Grappa.java was manipulating pixel color channels additively. At every iteration, it was adding R, G and B channels on top of the previous pixels, eventually leading up to full white color if there were multiple particles drawn there. Is there a mode on canvas that would restore that functionality?
 
 55. Particles start from the top-left corner of the screen the first time. They should start at the coordinates of the first mouse press.
+
+Gemini queries before prompt #51 above
+
+1. how to work with offscreen images for pixel-level rendering in compose multiplatform
+
+2. are there any known performance issues with pixelmapper in compose on web / wasmjs?

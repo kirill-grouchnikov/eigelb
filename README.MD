@@ -15,3 +15,11 @@ the terms of the Apache license.
 * Run the browser application locally: `./gradlew :webApp:wasmJsBrowserDevelopmentRun`
 * Deploy the `webApp/build/dist/wasmJs/productionExecutable` directory to a web server
 
+### Prompts
+
+Most of the porting work was done with Junie Lite in IntelliJ IDEA, with prompts guided by the original 
+code and intended visuals. See the following markdown files with session prompts:
+
+* [Glitzer](session-prompts-glitzer-port.MD)
+* [Grappa](session-prompts-grappa-port.MD)
+* [Sparky](session-prompts-sparky-port.MD)
