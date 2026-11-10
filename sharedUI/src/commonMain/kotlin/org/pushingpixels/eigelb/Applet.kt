@@ -15,7 +15,6 @@
  */
 package org.pushingpixels.eigelb
 
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -34,7 +33,6 @@ import eigelb.sharedui.generated.resources.Res
 import eigelb.sharedui.generated.resources.Star
 import org.jetbrains.compose.resources.imageResource
 import org.pushingpixels.eigelb.sparky.Sparky
-import org.pushingpixels.eigelb.sparky.SparkyDirect
 import org.pushingpixels.eigelb.sparky.SparkySettings
 import org.pushingpixels.eigelb.sparky.toQuadraticAlphaWhite
 
@@ -63,7 +61,7 @@ enum class Applet(val displayName: String) {
             GrappaWhite -> Grappa(modifier = modifier, startingSettings = Settings.white())
             GrappaRainbow -> Grappa(modifier = modifier, startingSettings = Settings.rainbow())
             Sparky -> {
-                SparkyDirect(
+                Sparky(
                     modifier = Modifier.sizeIn(maxWidth = 800.dp, maxHeight = 500.dp),
                     settings = SparkySettings(
                         starBitmap = toQuadraticAlphaWhite(imageResource(Res.drawable.Star), Color(0xFF998363)),
@@ -72,12 +70,12 @@ enum class Applet(val displayName: String) {
                 )
             }
             SparkyPS -> {
-                SparkyDirect(modifier = Modifier.sizeIn(maxWidth = 800.dp, maxHeight = 500.dp), settings = SparkySettings(
+                Sparky(modifier = Modifier.sizeIn(maxWidth = 800.dp, maxHeight = 500.dp), settings = SparkySettings(
                     starBitmap = toQuadraticAlphaWhite(imageResource(Res.drawable.Star), Color(0xFF998363)),
                     baseImageBitmap = imageResource(Res.drawable.Image_PS)))
             }
             SparkyCMP -> {
-                SparkyDirect(modifier = Modifier.sizeIn(maxWidth = 800.dp, maxHeight = 500.dp), settings = SparkySettings(
+                Sparky(modifier = Modifier.sizeIn(maxWidth = 800.dp, maxHeight = 500.dp), settings = SparkySettings(
                     starBitmap = toQuadraticAlphaWhite(imageResource(Res.drawable.Star), Color(0xFF998363)),
                     baseImageBitmap = imageResource(Res.drawable.Image_CMP)))
             }

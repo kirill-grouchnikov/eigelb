@@ -20,16 +20,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import eigelb.sharedui.generated.resources.Image
-import eigelb.sharedui.generated.resources.Res
 import eigelb.sharedui.generated.resources.Image_PS
+import eigelb.sharedui.generated.resources.Res
 import eigelb.sharedui.generated.resources.Star
-import eigelb.sharedui.generated.resources.Star_Alpha
 import org.jetbrains.compose.resources.imageResource
 import org.pushingpixels.eigelb.sparky.Sparky
-import org.pushingpixels.eigelb.sparky.SparkyDirect
 import org.pushingpixels.eigelb.sparky.SparkySettings
-import org.pushingpixels.eigelb.sparky.scaleDown
 import org.pushingpixels.eigelb.sparky.toQuadraticAlphaWhite
 import java.awt.Dimension
 
@@ -49,7 +45,7 @@ fun main() = application {
         //val scaledDownStarImage = scaleDown(starImage, 0.5)
         val remappedStarImage = toQuadraticAlphaWhite(starImage, Color(0xFF998363))
 
-        SparkyDirect(
+        Sparky(
             modifier = Modifier.fillMaxSize(),
             settings = SparkySettings(
                 frameCount = 25,
