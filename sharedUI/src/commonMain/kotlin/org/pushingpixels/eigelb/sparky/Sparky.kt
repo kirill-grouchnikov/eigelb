@@ -125,8 +125,8 @@ fun Sparky(
             val animationFramesCount = settings.frameCount
             val scale0 = 0.007 * settings.scaleMultiplier
             val threshold = 0.0003 * settings.thresholdMultiplier
-            val baseBrightnessData = readGreenChannelScaled(settings.baseImageBitmap!!, canvasWidth, canvasHeight)
-            val actualStarW = settings.starBitmap!!.width
+            val baseBrightnessData = readLumaScaled(settings.baseImageBitmap, canvasWidth, canvasHeight)
+            val actualStarW = settings.starBitmap.width
             val starActivePositions = mutableListOf<Pair<Int, Int>>()
             for (y in 0 until canvasHeight) {
                 for (x in 0 until canvasWidth) {
@@ -290,9 +290,10 @@ fun Sparky(
 }
 
 /**
- * Scales the green channel data from a bitmap to the target dimensions using nearest-neighbor sampling.
+ * Scales the luma (brightness) data from a bitmap to the target dimensions using nearest-neighbor sampling.
+ * Luma is computed from all three channels: L = 0.2126R + 0.7152G + 0.0722B.
  */
-private fun readGreenChannelScaled(bitmap: ImageBitmap, targetW: Int, targetH: Int): Array<IntArray> {
+private fun readLumaScaled(bitmap: ImageBitmap, targetW: Int, targetH: Int): Array<IntArray> {
     val srcW = bitmap.width
     val srcH = bitmap.height
     val pixels = IntArray(srcW * srcH)
@@ -304,8 +305,11 @@ private fun readGreenChannelScaled(bitmap: ImageBitmap, targetW: Int, targetH: I
             val srcX = (x * srcW / targetW).coerceIn(0, srcW - 1)
             val srcY = (y * srcH / targetH).coerceIn(0, srcH - 1)
             val pixel = pixels[srcY * srcW + srcX]
+            val red = (pixel shr 16) and 0xFF
             val green = (pixel shr 8) and 0xFF
-            data[x][y] = green
+            val blue = pixel and 0xFF
+            val luma = (0.2126 * red + 0.7152 * green + 0.0722 * blue).toInt()
+            data[x][y] = luma
         }
     }
     return data
